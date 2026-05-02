@@ -43,3 +43,25 @@ Booking status transitions are:
 - `pending|confirmed` -> `cancelled` (customer owner, organiser owner, or admin via `POST /api/bookings/{booking_id}/cancel`)
 
 Capacity and availability checks only consider active bookings (`pending`, `confirmed`).
+
+## White-label branding and domain readiness
+
+Per-organiser branding is stored on `users` and exposed by:
+
+- `PATCH /api/users/me/branding` (organiser/admin)
+- `GET /api/users/{organiser_id}/branding` (public read for booking pages)
+
+Branding fields:
+
+- `brand_display_name`
+- `brand_logo_url`
+- `brand_primary_color` / `brand_accent_color`
+- `brand_theme` (`light` or `dark`)
+- `brand_booking_domain` (readiness metadata)
+
+### Custom-domain readiness assumptions
+
+- Current routing remains path-based (e.g. `/book/:id` or `/book/share/:token`).
+- `brand_booking_domain` is stored as organiser metadata and returned in branding API.
+- When deploying custom domains, map host -> organiser and resolve branding/appointment context from that mapping before rendering booking pages.
+- Security checks (auth, booking availability, and slot locking) remain unchanged regardless of branded host.

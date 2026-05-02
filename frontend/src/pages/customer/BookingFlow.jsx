@@ -18,9 +18,11 @@ const STEPS = ["Service", "Resource", "Date", "Slot", "Capacity", "Questions", "
 const isAutoMode = (at) => at?.appointment_kind === "resource" && at?.assignment_mode === "auto";
 
 export default function BookingFlow() {
-  const { id } = useParams();
+  const { id, token } = useParams();
   const { user } = useAuth();
   const [at, setAt] = useState(null);
+  const [branding, setBranding] = useState(null);
+  const [notFound, setNotFound] = useState(false);
   const [step, setStep] = useState(0);
   const [resourceId, setResourceId] = useState(null);
   const [date, setDate] = useState("");
@@ -34,10 +36,39 @@ export default function BookingFlow() {
   const [err, setErr] = useState("");
 
   useEffect(() => {
+    if (token) {
+      api(`/api/appointments/by-share/${encodeURIComponent(token)}`)
+        .then((data) => {
+          setAt(data);
+          setNotFound(false);
+        })
+        .catch(() => {
+          setAt(null);
+          setNotFound(true);
+        });
+      return;
+    }
     api("/api/appointments/public")
-      .then((rows) => setAt(rows.find((x) => String(x.id) === String(id)) || null))
-      .catch(() => setAt(null));
-  }, [id]);
+      .then((rows) => {
+        const found = rows.find((x) => String(x.id) === String(id)) || null;
+        setAt(found);
+        setNotFound(!found);
+      })
+      .catch(() => {
+        setAt(null);
+        setNotFound(true);
+      });
+  }, [id, token]);
+
+  useEffect(() => {
+    if (!at?.organiser_id) {
+      setBranding(null);
+      return;
+    }
+    api(`/api/users/${at.organiser_id}/branding`)
+      .then(setBranding)
+      .catch(() => setBranding(null));
+  }, [at?.organiser_id]);
 
   const fromTo = useMemo(() => {
     if (!date) return null;
@@ -52,10 +83,10 @@ export default function BookingFlow() {
     const rid = at.appointment_kind === "resource" && !isAutoMode(at) ? resourceId : null;
     const params = new URLSearchParams({ from_date: fromTo.from, to_date: fromTo.to, tz: "UTC" });
     if (rid) params.set("resource_id", rid);
-    api(`/api/appointments/${id}/availability?${params}`)
+    api(`/api/appointments/${at.id}/availability?${params}`)
       .then(setAvailability)
       .catch((e) => setErr(e.message));
-  }, [step, date, resourceId, id, at, fromTo]);
+  }, [step, date, resourceId, at, fromTo]);
 
   function selectSlot(s) {
     setSlot(s);
@@ -74,7 +105,7 @@ export default function BookingFlow() {
     setErr("");
     try {
       const body = {
-        appointment_type_id: Number(id),
+        appointment_type_id: at.id,
         resource_id: at.appointment_kind === "resource" && !isAutoMode(at) ? resourceId : null,
         start_time: slot.start,
         capacity: at.manage_capacity ? capacity : 1,
@@ -87,6 +118,22 @@ export default function BookingFlow() {
     } catch (e) { setErr(e.message); }
   }
 
+  const pageStyle = branding ? {
+    "--brand-primary": branding.primary_color,
+    "--brand-accent": branding.accent_color,
+  } : undefined;
+
+  if (notFound) {
+    return (
+      <Card className="mx-auto max-w-md text-center">
+        <p className="mb-2 text-lg font-semibold text-error">Appointment not found</p>
+        <p className="mb-4 text-sm text-on-surface-variant">
+          {token ? "This link is invalid or no longer available." : "The appointment no longer exists."}
+        </p>
+        <Link to="/" className="text-primary-container hover:underline">Back home</Link>
+      </Card>
+    );
+  }
   if (!at) return <p className="p-8 text-center text-on-surface-variant">Loading… <Link to="/" className="text-primary-container hover:underline">Home</Link></p>;
   if (!user) return <Card className="mx-auto max-w-md"><p className="mb-4">Please sign in to book.</p><Link to="/login"><Button>Sign in</Button></Link></Card>;
   if (user.role !== "customer" && user.role !== "admin") return <Card className="mx-auto max-w-md"><p>Booking is for customers. <Link to="/app" className="text-primary-container hover:underline">Console</Link></p></Card>;
@@ -102,7 +149,33 @@ export default function BookingFlow() {
   const cStep = at.advance_payment ? qStep + 2 : qStep + 1;
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-3xl" style={pageStyle}>
+      {branding && (
+        <Card className="mb-6 overflow-hidden p-0">
+          <div
+            className="px-5 py-4 text-white"
+            style={{ background: `linear-gradient(135deg, ${branding.primary_color}, ${branding.accent_color})` }}
+          >
+            <div className="flex items-center gap-3">
+              {branding.logo_url ? (
+                <img src={branding.logo_url} alt={`${branding.display_name} logo`} className="h-10 w-10 rounded-md bg-white/15 object-cover" />
+              ) : (
+                <div className="flex h-10 w-10 items-center justify-center rounded-md bg-white/20 text-sm font-bold">
+                  {(branding.display_name || "B").slice(0, 1).toUpperCase()}
+                </div>
+              )}
+              <div>
+                <p className="text-xs uppercase tracking-wide text-white/80">Hosted by</p>
+                <h2 className="text-lg font-semibold">{branding.display_name}</h2>
+              </div>
+            </div>
+          </div>
+          {branding.theme === "dark" && (
+            <p className="px-5 py-2 text-xs text-on-surface-variant">Brand preference: dark theme</p>
+          )}
+        </Card>
+      )}
+
       {/* Step indicator matching mockup tab-style */}
       {step < 7 && (
         <div className="mb-6 flex items-center gap-1 overflow-x-auto pb-2">
