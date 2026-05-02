@@ -18,6 +18,7 @@ from app.schemas.booking import (
     PhonePePaymentStatusOut,
 )
 from app.services import booking_service
+from app.services.booking_service import SlotFullError
 from app.services.idempotency import (
     ENDPOINT_BOOKING_CREATE,
     cleanup_expired,
@@ -86,6 +87,13 @@ def create_booking_route(
             data.share_token,
             data.seat_ids,
         )
+    except SlotFullError as e:
+        if idempotency_key is not None:
+            store_record(
+                db, idempotency_key, user.id, ENDPOINT_BOOKING_CREATE,
+                409, {"detail": str(e), "slot_full": True},
+            )
+        raise HTTPException(status_code=409, detail=str(e))
     except ValueError as e:
         if idempotency_key is not None:
             store_record(

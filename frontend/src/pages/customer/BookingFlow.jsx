@@ -18,6 +18,137 @@ import StepDone from "./booking/StepDone.jsx";
 const STEPS = ["Service", "Resource", "Date", "Slot", "Seats", "Capacity", "Questions", "Payment", "Confirm"];
 const isAutoMode = (at) => at?.appointment_kind === "resource" && at?.assignment_mode === "auto";
 
+// ─── Waitlist Dialog ──────────────────────────────────────────────────────────
+function WaitlistDialog({ slots, at, resourceId, selectedSeatIds, answers, onClose, onJoined }) {
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function handleJoin() {
+    setErr("");
+    setLoading(true);
+    try {
+      const joined = [];
+      for (const slot of slots) {
+        const entry = await api("/api/waitlist", {
+          method: "POST",
+          body: JSON.stringify({
+            appointment_type_id: at.id,
+            resource_id: resourceId ?? null,
+            start_time: slot.start,
+            seat_ids: selectedSeatIds.length ? selectedSeatIds : null,
+            answers: Object.keys(answers || {}).length ? answers : null,
+          }),
+        });
+        joined.push(entry);
+      }
+      onJoined(joined);
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-enter">
+      <div className="mx-4 w-full max-w-md rounded-2xl border border-outline-variant bg-surface-container p-6 shadow-2xl">
+        {/* Header */}
+        <div className="mb-4 flex items-center gap-3">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-warning/15 text-warning">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-on-surface">Slot is Full</h3>
+            <p className="text-sm text-on-surface-variant">Join the waitlist to get notified when a spot opens up.</p>
+          </div>
+        </div>
+
+        {/* Slot details */}
+        <div className="mb-4 space-y-1 rounded-lg border border-outline-variant bg-surface-container-low p-3">
+          <p className="text-xs font-bold uppercase text-on-surface-variant">Selected slot{slots.length > 1 ? "s" : ""}</p>
+          {slots.map((s) => {
+            const d = new Date(s.start);
+            return (
+              <p key={s.start} className="text-sm font-medium text-on-surface">
+                {d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}{" "}
+                {d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              </p>
+            );
+          })}
+          {selectedSeatIds.length > 0 && (
+            <p className="text-xs text-on-surface-variant">Seats requested: {selectedSeatIds.length}</p>
+          )}
+        </div>
+
+        <div className="mb-4 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-on-surface">
+          <p className="font-semibold text-warning">How it works</p>
+          <ul className="mt-1 space-y-0.5 text-on-surface-variant text-xs list-disc pl-4">
+            <li>Your position in the queue is reserved by the time you apply.</li>
+            <li>When someone cancels, you'll get an email notification.</li>
+            <li>You can leave the waitlist any time from your profile.</li>
+          </ul>
+        </div>
+
+        {err && <p className="mb-3 rounded-lg bg-error-container/30 px-3 py-2 text-sm text-error">{err}</p>}
+
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={onClose} disabled={loading}>Dismiss</Button>
+          <Button onClick={handleJoin} disabled={loading}>
+            {loading ? "Joining…" : "Join Waitlist"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Waitlist Done screen ─────────────────────────────────────────────────────
+function WaitlistDone({ entries, at, onReset }) {
+  return (
+    <Card className="text-center">
+      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-warning/15 text-warning animate-enter">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        </svg>
+      </div>
+      <h3 className="mt-4 text-xl font-bold text-on-surface">You're on the waitlist!</h3>
+      <p className="mt-1 text-sm text-on-surface-variant">
+        We'll email you when a spot opens up. You're #{entries[0]?.position || "?"} in the queue.
+      </p>
+
+      <div className="mt-4 mx-auto max-w-sm space-y-2">
+        {entries.map((e) => {
+          const d = new Date(e.start_time);
+          return (
+            <div key={e.id} className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-left">
+              <p className="text-xs font-bold uppercase text-warning">Waitlist #{e.position}</p>
+              <p className="text-sm font-medium text-on-surface mt-0.5">
+                {d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}{" "}
+                {d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              </p>
+              <p className="text-xs text-on-surface-variant">{at?.name}</p>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-6 flex flex-wrap justify-center gap-3">
+        <Link to="/profile"><Button variant="secondary">My appointments</Button></Link>
+        <Button onClick={onReset}>Book another slot</Button>
+      </div>
+    </Card>
+  );
+}
+
+// ─── Main BookingFlow ─────────────────────────────────────────────────────────
 export default function BookingFlow() {
   const { id, token } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -39,8 +170,11 @@ export default function BookingFlow() {
   const [booking, setBooking] = useState(null);
   const [bookings, setBookings] = useState([]);
   const [err, setErr] = useState("");
+  const [waitlistDialog, setWaitlistDialog] = useState(false);
+  const [waitlistEntries, setWaitlistEntries] = useState([]);
   const paymentDraftKey = "neubook_phonepe_draft";
 
+  // ── fetch appointment type ──────────────────────────────────────────────────
   useEffect(() => {
     if (token) {
       api(`/api/appointments/by-share/${encodeURIComponent(token)}`)
@@ -64,6 +198,7 @@ export default function BookingFlow() {
   const pStepIdx = at?.advance_payment ? qStepIdx + 1 : null;
   const cStepIdx = at?.advance_payment ? qStepIdx + 2 : qStepIdx + 1;
 
+  // ── phonepe return ─────────────────────────────────────────────────────────
   useEffect(() => {
     const isReturn = searchParams.get("pp_return") === "1";
     if (!isReturn || !at) return;
@@ -113,16 +248,15 @@ export default function BookingFlow() {
       .finally(() => setPaymentLoading(false));
   }, [at, cStepIdx, paymentConfirmed, searchParams, setSearchParams]);
 
+  // ── branding ───────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!at?.organiser_id) {
-      setBranding(null);
-      return;
-    }
+    if (!at?.organiser_id) { setBranding(null); return; }
     api(`/api/users/${at.organiser_id}/branding`)
       .then(setBranding)
       .catch(() => setBranding(null));
   }, [at?.organiser_id]);
 
+  // ── availability ───────────────────────────────────────────────────────────
   const fromTo = useMemo(() => {
     if (!date) return null;
     const d = new Date(date + "T12:00:00");
@@ -141,6 +275,7 @@ export default function BookingFlow() {
       .catch((e) => setErr(e.message));
   }, [step, date, resourceId, at, fromTo]);
 
+  // ── slot toggle ────────────────────────────────────────────────────────────
   function toggleSlot(s) {
     setSlots((prev) => {
       const exists = prev.find((x) => x.start === s.start);
@@ -150,21 +285,13 @@ export default function BookingFlow() {
   }
 
   function slotContinue() {
-    if (hasSeatMap) {
-      setStep(seatStepIdx);
-      return;
-    }
-    if (capacityStepIdx !== null) {
-      setStep(capacityStepIdx);
-      return;
-    }
-    if ((at.questions || []).length > 0) {
-      setStep(qStepIdx);
-      return;
-    }
+    if (hasSeatMap) { setStep(seatStepIdx); return; }
+    if (capacityStepIdx !== null) { setStep(capacityStepIdx); return; }
+    if ((at.questions || []).length > 0) { setStep(qStepIdx); return; }
     setStep(at.advance_payment ? pStepIdx : cStepIdx);
   }
 
+  // ── confirm booking ────────────────────────────────────────────────────────
   async function confirm() {
     setErr("");
     try {
@@ -181,14 +308,26 @@ export default function BookingFlow() {
           seat_ids: hasSeatMap ? selectedSeatIds : null,
           ...(token ? { share_token: token } : {}),
         };
-        results.push(await api("/api/bookings", { method: "POST", body: JSON.stringify(body) }));
+        try {
+          results.push(await api("/api/bookings", { method: "POST", body: JSON.stringify(body) }));
+        } catch (e) {
+          // 409 = slot full → offer waitlist
+          if (e.message && (e.message.includes("capacity exceeded") || e.message.includes("no longer available"))) {
+            setWaitlistDialog(true);
+            return;
+          }
+          throw e;
+        }
       }
       setBookings(results);
       setBooking(results[0]);
       setStep(99);
-    } catch (e) { setErr(e.message); }
+    } catch (e) {
+      setErr(e.message);
+    }
   }
 
+  // ── PhonePe payment ────────────────────────────────────────────────────────
   const pageStyle = branding ? {
     "--brand-primary": branding.primary_color,
     "--brand-accent": branding.accent_color,
@@ -203,25 +342,12 @@ export default function BookingFlow() {
       if (!Number.isFinite(amountPaisa) || amountPaisa < 100) {
         throw new Error("Service amount is not configured correctly for this appointment.");
       }
-      if (!slots.length) {
-        throw new Error("Please select at least one slot before payment.");
-      }
-      if (hasSeatMap && !selectedSeatIds.length) {
-        throw new Error("Please select seats before payment.");
-      }
+      if (!slots.length) throw new Error("Please select at least one slot before payment.");
+      if (hasSeatMap && !selectedSeatIds.length) throw new Error("Please select seats before payment.");
       const orderId = `nb_${at.id}_${Date.now()}`;
       window.sessionStorage.setItem(
         paymentDraftKey,
-        JSON.stringify({
-          appointmentId: at.id,
-          resourceId,
-          date,
-          availability,
-          slots,
-          selectedSeatIds,
-          capacity,
-          answers,
-        }),
+        JSON.stringify({ appointmentId: at.id, resourceId, date, availability, slots, selectedSeatIds, capacity, answers }),
       );
       const basePath = token ? `/book/share/${encodeURIComponent(token)}` : `/book/${id}`;
       const redirectUrl = `${window.location.origin}${basePath}?pp_return=1&pp_order_id=${encodeURIComponent(orderId)}`;
@@ -241,6 +367,20 @@ export default function BookingFlow() {
     }
   }
 
+  // ── reset after waitlist ───────────────────────────────────────────────────
+  function resetFlow() {
+    setStep(0);
+    setSlots([]);
+    setSelectedSeatIds([]);
+    setCapacity(1);
+    setAnswers({});
+    setBooking(null);
+    setBookings([]);
+    setWaitlistEntries([]);
+    setErr("");
+  }
+
+  // ── guard clauses ──────────────────────────────────────────────────────────
   if (notFound) return (
     <Card className="mx-auto max-w-md text-center">
       <p className="mb-2 text-lg font-semibold text-error">Appointment not found</p>
@@ -260,14 +400,37 @@ export default function BookingFlow() {
     return true;
   });
 
+  // ── waitlist done screen ───────────────────────────────────────────────────
+  if (step === 98) {
+    return (
+      <div className="mx-auto max-w-3xl" style={pageStyle}>
+        <WaitlistDone entries={waitlistEntries} at={at} onReset={resetFlow} />
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-3xl" style={pageStyle}>
+      {/* Waitlist dialog overlay */}
+      {waitlistDialog && (
+        <WaitlistDialog
+          slots={slots}
+          at={at}
+          resourceId={at.appointment_kind === "resource" && !isAutoMode(at) ? resourceId : null}
+          selectedSeatIds={selectedSeatIds}
+          answers={answers}
+          onClose={() => setWaitlistDialog(false)}
+          onJoined={(entries) => {
+            setWaitlistEntries(entries);
+            setWaitlistDialog(false);
+            setStep(98);
+          }}
+        />
+      )}
+
       {branding && (
         <Card className="mb-6 overflow-hidden p-0">
-          <div
-            className="px-5 py-4 text-white"
-            style={{ background: `linear-gradient(135deg, ${branding.primary_color}, ${branding.accent_color})` }}
-          >
+          <div className="px-5 py-4 text-white" style={{ background: `linear-gradient(135deg, ${branding.primary_color}, ${branding.accent_color})` }}>
             <div className="flex items-center gap-3">
               {branding.logo_url ? (
                 <img src={branding.logo_url} alt={`${branding.display_name} logo`} className="h-10 w-10 rounded-md bg-white/15 object-cover" />
@@ -321,13 +484,14 @@ export default function BookingFlow() {
       {step === 0 && <StepService at={at} onNext={() => setStep(isAutoMode(at) ? 2 : 1)} />}
       {step === 1 && !isAutoMode(at) && <StepResource at={at} resourceId={resourceId} setResourceId={setResourceId} onBack={() => setStep(0)} onNext={() => setStep(2)} />}
       {step === 2 && <StepDate date={date} setDate={setDate} onBack={() => setStep(isAutoMode(at) ? 0 : 1)} onNext={() => setStep(3)} />}
-      {step === 3 && <StepSlot availability={availability} selectedSlots={slots} err={err} onToggle={toggleSlot} onContinue={slotContinue} onBack={() => setStep(2)} />}
+      {step === 3 && <StepSlot availability={availability} selectedSlots={slots} err={err} onToggle={toggleSlot} onContinue={slotContinue} onBack={() => setStep(2)} appointmentTypeId={at?.id} resourceId={resourceId} />}
       {hasSeatMap && step === seatStepIdx && (
         <StepSeatMap
           at={at}
           resourceId={resourceId}
           selectedSeatIds={selectedSeatIds}
           setSelectedSeatIds={setSelectedSeatIds}
+          slots={slots}
           onBack={() => setStep(3)}
           onNext={() => setStep(capacityStepIdx !== null ? capacityStepIdx : qStepIdx)}
         />

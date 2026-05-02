@@ -27,3 +27,4 @@ class User(Base):
 
     appointment_types = relationship("AppointmentType", back_populates="organiser")
     bookings = relationship("Booking", back_populates="customer")
+    waitlist_entries = relationship("WaitlistEntry", back_populates="customer", foreign_keys="WaitlistEntry.customer_id")
