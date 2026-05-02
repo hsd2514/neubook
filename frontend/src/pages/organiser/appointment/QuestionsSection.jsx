@@ -4,8 +4,10 @@ import { Input } from "../../../components/ui/Input.jsx";
 import { Select } from "../../../components/ui/Select.jsx";
 import { Button } from "../../../components/ui/Button.jsx";
 import { api } from "../../../services/api.js";
+import { useToast } from "../../../context/ToastContext.jsx";
 
 export default function QuestionsSection({ appointmentId, questions, onRefresh }) {
+  const { success, error } = useToast();
   const [label, setLabel] = useState("");
   const [type, setType] = useState("text");
   const [err, setErr] = useState("");
@@ -21,7 +23,11 @@ export default function QuestionsSection({ appointmentId, questions, onRefresh }
       });
       setLabel("");
       onRefresh();
-    } catch (ex) { setErr(ex.message); }
+      success("Question added successfully");
+    } catch (ex) {
+      setErr(ex.message);
+      error(ex.message || "Failed to add question");
+    }
   }
 
   return (

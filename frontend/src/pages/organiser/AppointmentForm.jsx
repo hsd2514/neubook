@@ -7,6 +7,7 @@ import { Badge } from "../../components/ui/Badge.jsx";
 import { Tabs } from "../../components/ui/Tabs.jsx";
 import { Toggle } from "../../components/ui/Toggle.jsx";
 import { api } from "../../services/api.js";
+import { useToast } from "../../context/ToastContext.jsx";
 import { useAppointment } from "./appointment/useAppointment.js";
 import BasicsSection from "./appointment/BasicsSection.jsx";
 import ResourcesSection from "./appointment/ResourcesSection.jsx";
@@ -27,6 +28,7 @@ const TABS = [
 
 export default function AppointmentForm() {
   const { id } = useParams();
+  const { success, error } = useToast();
   const { isNew, form, setForm, at, setAt: refresh, err, saveBase, loading, notFound } = useAppointment(id);
   const [tab, setTab] = useState("basics");
   const [copied, setCopied] = useState(false);
@@ -71,11 +73,16 @@ export default function AppointmentForm() {
   async function togglePublish() {
     setForm((f) => ({ ...f, is_published: !f.is_published }));
     if (!isNew) {
-      await api(`/api/appointments/mine/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ is_published: !form.is_published }),
-      });
-      refresh();
+      try {
+        await api(`/api/appointments/mine/${id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ is_published: !form.is_published }),
+        });
+        await refresh();
+        success(`Appointment ${!form.is_published ? "published" : "unpublished"}`);
+      } catch (ex) {
+        error(ex.message || "Failed to update publish status");
+      }
     }
   }
 

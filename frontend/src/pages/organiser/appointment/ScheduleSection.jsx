@@ -4,11 +4,13 @@ import { Input } from "../../../components/ui/Input.jsx";
 import { Select } from "../../../components/ui/Select.jsx";
 import { Button } from "../../../components/ui/Button.jsx";
 import { api } from "../../../services/api.js";
+import { useToast } from "../../../context/ToastContext.jsx";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export default function ScheduleSection({ appointmentId, slotSchedule, schedules, blockedSlots, resources, onRefresh }) {
+  const { success, error } = useToast();
   const [sch, setSch] = useState({
     schedule_mode: slotSchedule || "weekly",
     day_of_week: 0,
@@ -37,19 +39,24 @@ export default function ScheduleSection({ appointmentId, slotSchedule, schedules
       day_of_week: sch.schedule_mode === "weekly" ? sch.day_of_week : null,
       slot_date: sch.schedule_mode === "flexible" ? sch.slot_date : null,
     };
-    await api(`/api/appointments/mine/${appointmentId}/schedules`, {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-    setSch((prev) => ({
-      ...prev,
-      slot_date: "",
-      day_of_week: 0,
-      start_time: "09:00",
-      end_time: "17:00",
-      resource_id: null,
-    }));
-    onRefresh();
+    try {
+      await api(`/api/appointments/mine/${appointmentId}/schedules`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      setSch((prev) => ({
+        ...prev,
+        slot_date: "",
+        day_of_week: 0,
+        start_time: "09:00",
+        end_time: "17:00",
+        resource_id: null,
+      }));
+      onRefresh();
+      success("Schedule added successfully");
+    } catch (ex) {
+      error(ex.message || "Failed to add schedule");
+    }
   }
 
   function addRangeRow() {
@@ -78,22 +85,37 @@ export default function ScheduleSection({ appointmentId, slotSchedule, schedules
         end_time: block.all_day ? null : block.end_time,
       }));
     if (!payload.length) return;
-    await api(`/api/appointments/mine/${appointmentId}/blocked-slots/bulk`, {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-    setBlockRows([{ start_date: "", end_date: "" }]);
-    onRefresh();
+    try {
+      await api(`/api/appointments/mine/${appointmentId}/blocked-slots/bulk`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      setBlockRows([{ start_date: "", end_date: "" }]);
+      onRefresh();
+      success("Blocked slots added successfully");
+    } catch (ex) {
+      error(ex.message || "Failed to add blocked slots");
+    }
   }
 
   async function removeBlocked(id) {
-    await api(`/api/appointments/mine/${appointmentId}/blocked-slots/${id}`, { method: "DELETE" });
-    onRefresh();
+    try {
+      await api(`/api/appointments/mine/${appointmentId}/blocked-slots/${id}`, { method: "DELETE" });
+      onRefresh();
+      success("Blocked slot removed successfully");
+    } catch (ex) {
+      error(ex.message || "Failed to remove blocked slot");
+    }
   }
 
   async function removeSchedule(id) {
-    await api(`/api/appointments/mine/${appointmentId}/schedules/${id}`, { method: "DELETE" });
-    onRefresh();
+    try {
+      await api(`/api/appointments/mine/${appointmentId}/schedules/${id}`, { method: "DELETE" });
+      onRefresh();
+      success("Schedule removed successfully");
+    } catch (ex) {
+      error(ex.message || "Failed to remove schedule");
+    }
   }
 
   const mode = sch.schedule_mode;

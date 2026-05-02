@@ -4,8 +4,10 @@ import { Button } from "../../../components/ui/Button.jsx";
 import { Input } from "../../../components/ui/Input.jsx";
 import { Select } from "../../../components/ui/Select.jsx";
 import { api } from "../../../services/api.js";
+import { useToast } from "../../../context/ToastContext.jsx";
 
 export default function SeatMapSection({ appointmentId, resources, seatBlocks, seats, onRefresh }) {
+  const { success, error } = useToast();
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [blocks, setBlocks] = useState(
@@ -51,8 +53,10 @@ export default function SeatMapSection({ appointmentId, resources, seatBlocks, s
         body: JSON.stringify(payload),
       });
       await onRefresh();
+      success("Seat blocks saved successfully");
     } catch (e) {
       setErr(e.message);
+      error(e.message || "Failed to save seat blocks");
     } finally {
       setBusy(false);
     }
@@ -94,8 +98,10 @@ export default function SeatMapSection({ appointmentId, resources, seatBlocks, s
       });
       await onRefresh();
       setNewSeats([{ block_id: blockOptions[0]?.id || "", label: "", row_label: "", col_number: "", seat_type: "normal", resource_id: "" }]);
+      success("Seats saved successfully");
     } catch (e) {
       setErr(e.message);
+      error(e.message || "Failed to save seats");
     } finally {
       setBusy(false);
     }
@@ -106,8 +112,10 @@ export default function SeatMapSection({ appointmentId, resources, seatBlocks, s
     try {
       await api(`/api/appointments/mine/${appointmentId}/seats/${seatId}`, { method: "DELETE" });
       await onRefresh();
+      success("Seat deleted successfully");
     } catch (e) {
       setErr(e.message);
+      error(e.message || "Failed to delete seat");
     }
   }
 

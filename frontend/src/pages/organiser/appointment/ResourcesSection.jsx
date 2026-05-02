@@ -3,8 +3,10 @@ import { Plus, User } from "lucide-react";
 import { Input } from "../../../components/ui/Input.jsx";
 import { Button } from "../../../components/ui/Button.jsx";
 import { api } from "../../../services/api.js";
+import { useToast } from "../../../context/ToastContext.jsx";
 
 export default function ResourcesSection({ appointmentId, resources, onRefresh }) {
+  const { success, error } = useToast();
   const [name, setName] = useState("");
   const [err, setErr] = useState("");
 
@@ -16,7 +18,11 @@ export default function ResourcesSection({ appointmentId, resources, onRefresh }
       await api(`/api/appointments/mine/${appointmentId}/resources`, { method: "POST", body: JSON.stringify({ name }) });
       setName("");
       onRefresh();
-    } catch (ex) { setErr(ex.message); }
+      success("Resource added successfully");
+    } catch (ex) {
+      setErr(ex.message);
+      error(ex.message || "Failed to add resource");
+    }
   }
 
   return (
