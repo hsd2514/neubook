@@ -28,13 +28,14 @@ export default function BookingFlow() {
   const [resourceId, setResourceId] = useState(null);
   const [date, setDate] = useState("");
   const [availability, setAvailability] = useState([]);
-  const [slot, setSlot] = useState(null);
+  const [slots, setSlots] = useState([]);
   const [capacity, setCapacity] = useState(1);
   const [answers, setAnswers] = useState({});
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [paymentReference, setPaymentReference] = useState("");
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [booking, setBooking] = useState(null);
+  const [bookings, setBookings] = useState([]);
   const [err, setErr] = useState("");
   const paymentDraftKey = "neubook_phonepe_draft";
 
@@ -130,8 +131,15 @@ export default function BookingFlow() {
       .catch((e) => setErr(e.message));
   }, [step, date, resourceId, at, fromTo]);
 
-  function selectSlot(s) {
-    setSlot(s);
+  function toggleSlot(s) {
+    setSlots((prev) => {
+      const exists = prev.find((x) => x.start === s.start);
+      if (exists) return prev.filter((x) => x.start !== s.start);
+      return [...prev, s];
+    });
+  }
+
+  function slotContinue() {
     if (at.manage_capacity) {
       setStep(4);
       return;
@@ -146,17 +154,22 @@ export default function BookingFlow() {
   async function confirm() {
     setErr("");
     try {
-      const body = {
-        appointment_type_id: at.id,
-        resource_id: at.appointment_kind === "resource" && !isAutoMode(at) ? resourceId : null,
-        start_time: slot.start,
-        capacity: at.manage_capacity ? capacity : 1,
-        answers: Object.keys(answers).length ? answers : null,
-        payment_confirmed: at.advance_payment ? paymentConfirmed : false,
-        payment_reference: at.advance_payment ? paymentReference || null : null,
-        ...(token ? { share_token: token } : {}),
-      };
-      setBooking(await api("/api/bookings", { method: "POST", body: JSON.stringify(body) }));
+      const results = [];
+      for (const slot of slots) {
+        const body = {
+          appointment_type_id: at.id,
+          resource_id: at.appointment_kind === "resource" && !isAutoMode(at) ? resourceId : null,
+          start_time: slot.start,
+          capacity: at.manage_capacity ? capacity : 1,
+          answers: Object.keys(answers).length ? answers : null,
+          payment_confirmed: at.advance_payment ? paymentConfirmed : false,
+          payment_reference: at.advance_payment ? paymentReference || null : null,
+          ...(token ? { share_token: token } : {}),
+        };
+        results.push(await api("/api/bookings", { method: "POST", body: JSON.stringify(body) }));
+      }
+      setBookings(results);
+      setBooking(results[0]);
       setStep(7);
     } catch (e) { setErr(e.message); }
   }
@@ -287,10 +300,10 @@ export default function BookingFlow() {
       {step === 0 && <StepService at={at} onNext={() => setStep(isAutoMode(at) ? 2 : 1)} />}
       {step === 1 && !isAutoMode(at) && <StepResource at={at} resourceId={resourceId} setResourceId={setResourceId} onBack={() => setStep(0)} onNext={() => setStep(2)} />}
       {step === 2 && <StepDate date={date} setDate={setDate} onBack={() => setStep(isAutoMode(at) ? 0 : 1)} onNext={() => setStep(3)} />}
-      {step === 3 && <StepSlot availability={availability} err={err} onSelect={selectSlot} onBack={() => setStep(2)} />}
+      {step === 3 && <StepSlot availability={availability} selectedSlots={slots} err={err} onToggle={toggleSlot} onContinue={slotContinue} onBack={() => setStep(2)} />}
       {step === 4 && at.manage_capacity && (
         <StepCapacity
-          slot={slot}
+          slots={slots}
           capacity={capacity}
           setCapacity={setCapacity}
           onBack={() => setStep(3)}
@@ -319,7 +332,7 @@ export default function BookingFlow() {
       {step === cStep && (
         <StepConfirm
           at={at}
-          slot={slot}
+          slots={slots}
           capacity={capacity}
           err={err}
           paymentConfirmed={paymentConfirmed}
@@ -328,7 +341,7 @@ export default function BookingFlow() {
           onConfirm={confirm}
         />
       )}
-      {step === 7 && booking && <StepDone booking={booking} at={at} />}
+      {step === 7 && booking && <StepDone booking={booking} bookings={bookings} at={at} />}
     </div>
   );
 }

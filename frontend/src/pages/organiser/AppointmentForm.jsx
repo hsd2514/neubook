@@ -62,7 +62,6 @@ export default function AppointmentForm() {
       active = false;
     };
   }, [shareBookingUrl]);
-
   if (!isNew && loading) return <p className="p-8 text-on-surface-variant">Loading…</p>;
   if (!isNew && notFound) return <p className="p-8 text-error">Appointment not found or inaccessible.</p>;
 
@@ -180,6 +179,7 @@ export default function AppointmentForm() {
               appointmentId={id}
               slotSchedule={at?.slot_schedule}
               schedules={at?.schedules}
+              blockedSlots={at?.blocked_slots}
               resources={at?.resources}
               onRefresh={refresh}
             />

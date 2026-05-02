@@ -10,10 +10,14 @@ export default function BookingsList() {
   const [rows, setRows] = useState([]);
   const [filter, setFilter] = useState("");
   const [detail, setDetail] = useState(null);
+  const [loadErr, setLoadErr] = useState("");
 
   function load() {
     const q = filter ? `?status_filter=${encodeURIComponent(filter)}` : "";
-    api(`/api/bookings/organiser${q}`).then(setRows).catch(() => setRows([]));
+    setLoadErr("");
+    api(`/api/bookings/organiser${q}`)
+      .then((data) => { setRows(data); setLoadErr(""); })
+      .catch((ex) => { setRows([]); setLoadErr(ex.message || "Failed to load bookings"); });
   }
   useEffect(() => { load(); }, [filter]);
 
@@ -31,6 +35,7 @@ export default function BookingsList() {
     <div>
       <h1 className="text-2xl font-bold text-on-surface">Bookings</h1>
       <p className="text-sm text-on-surface-variant">{rows.length} booking{rows.length !== 1 ? "s" : ""} total</p>
+      {loadErr && <p className="mt-2 rounded-lg bg-error-container/30 px-4 py-2 text-sm text-error">{loadErr}</p>}
 
       {/* Filter bar */}
       <div className="mt-4 flex gap-1 rounded-lg border border-outline-variant bg-surface-container-low p-1">

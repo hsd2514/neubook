@@ -108,7 +108,7 @@ def organiser_bookings(
         select(Booking)
         .join(AppointmentType, Booking.appointment_type_id == AppointmentType.id)
         .where(AppointmentType.organiser_id == user.id)
-        .order_by(Booking.start_time.desc())
+        .order_by(Booking.id.asc())
     )
     if status_filter:
         q = q.where(Booking.status == status_filter)

@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.appointment_type import AppointmentType
+from app.models.blocked_slot import BlockedSlot
 from app.models.booking import Booking
 from app.models.resource import Resource
 from app.models.schedule import Schedule
@@ -28,6 +29,37 @@ def _schedule_matches_day(sch: Schedule, target_day: date, target_dow: int) -> b
         return sch.day_of_week == target_dow
     if mode == "flexible":
         return sch.slot_date == target_day
+    return False
+
+
+def _block_matches_day(block: BlockedSlot, target_day: date, target_dow: int) -> bool:
+    if target_day < block.start_date or target_day > block.end_date:
+        return False
+    if block.block_type == "recurring":
+        return block.day_of_week == target_dow
+    return True
+
+
+def _is_slot_blocked(
+    blocked_slots: list[BlockedSlot],
+    slot_start: datetime,
+    slot_end: datetime,
+    res_id: int | None,
+) -> bool:
+    day = slot_start.date()
+    dow = day.weekday()
+    slot_start_t = slot_start.timetz().replace(tzinfo=None)
+    slot_end_t = slot_end.timetz().replace(tzinfo=None)
+
+    for block in blocked_slots:
+        if block.resource_id is not None and block.resource_id != res_id:
+            continue
+        if not _block_matches_day(block, day, dow):
+            continue
+        if block.start_time is None or block.end_time is None:
+            return True
+        if block.start_time < slot_end_t and block.end_time > slot_start_t:
+            return True
     return False
 
 
@@ -66,6 +98,14 @@ def get_availability(
 
     if at.appointment_kind == "resource" and not resources:
         return []
+
+    blocked_slots = db.execute(
+        select(BlockedSlot).where(
+            BlockedSlot.appointment_type_id == appointment_type_id,
+            BlockedSlot.end_date >= from_date,
+            BlockedSlot.start_date <= to_date,
+        )
+    ).scalars().all()
 
     start_utc = datetime.combine(from_date, time.min, tzinfo=tz).astimezone(timezone.utc)
     end_utc = datetime.combine(to_date + timedelta(days=1), time.min, tzinfo=tz).astimezone(timezone.utc)
@@ -113,6 +153,9 @@ def get_availability(
                 while cur + duration <= end:
                     slot_start = cur
                     slot_end = cur + duration
+                    if _is_slot_blocked(blocked_slots, slot_start, slot_end, res_id):
+                        cur += duration
+                        continue
                     used = _overlap_usage(slot_start, slot_end, res_id)
                     avail = max(0, max_per_slot - used)
                     if avail > 0:
@@ -191,6 +234,17 @@ def slot_exists_for_start(
         if local_start < window_start or local_start + duration > window_end:
             continue
         delta = local_start - window_start
+        if delta % duration != timedelta(0):
+            continue
+        blocked_slots = db.execute(
+            select(BlockedSlot).where(
+                BlockedSlot.appointment_type_id == appointment_type_id,
+                BlockedSlot.end_date >= local_day,
+                BlockedSlot.start_date <= local_day,
+            )
+        ).scalars().all()
+        if _is_slot_blocked(blocked_slots, local_start, local_start + duration, resource_id):
+            continue
         if delta % duration == timedelta(0):
             return True
     return False
@@ -219,6 +273,8 @@ def auto_assign_resource(
     best_id: int | None = None
     best_used: int | None = None
     for res in resources:
+        if not slot_exists_for_start(db, appointment_type_id, res.id, start_time, tz_name="UTC"):
+            continue
         used = db.execute(
             select(func.coalesce(func.sum(Booking.capacity), 0)).where(
                 Booking.appointment_type_id == appointment_type_id,

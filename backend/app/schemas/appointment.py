@@ -15,6 +15,42 @@ class ResourceOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class BlockedSlotCreate(BaseModel):
+    block_type: str = "one_off"
+    resource_id: int | None = None
+    start_date: str
+    end_date: str
+    day_of_week: int | None = Field(None, ge=0, le=6)
+    start_time: str | None = None
+    end_time: str | None = None
+
+    @model_validator(mode="after")
+    def validate_block_fields(self):
+        if self.block_type not in {"one_off", "recurring", "holiday"}:
+            raise ValueError("block_type must be one_off, recurring, or holiday")
+        if self.block_type == "recurring" and self.day_of_week is None:
+            raise ValueError("day_of_week is required for recurring blocks")
+        if self.block_type != "recurring" and self.day_of_week is not None:
+            raise ValueError("day_of_week is only allowed for recurring blocks")
+        if (self.start_time is None) != (self.end_time is None):
+            raise ValueError("start_time and end_time must both be provided for partial-day blocks")
+        return self
+
+
+class BlockedSlotOut(BaseModel):
+    id: int
+    appointment_type_id: int
+    block_type: str
+    resource_id: int | None
+    start_date: str
+    end_date: str
+    day_of_week: int | None
+    start_time: str | None
+    end_time: str | None
+
+    model_config = {"from_attributes": True}
+
+
 class ScheduleCreate(BaseModel):
     schedule_mode: str = "weekly"
     resource_id: int | None = None
@@ -136,6 +172,7 @@ class AppointmentTypeOut(BaseModel):
     share_link: str | None
     resources: list[ResourceOut] = []
     schedules: list[ScheduleOut] = []
+    blocked_slots: list[BlockedSlotOut] = []
     questions: list[QuestionOut] = []
 
     model_config = {"from_attributes": True}

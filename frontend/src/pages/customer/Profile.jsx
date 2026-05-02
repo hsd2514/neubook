@@ -12,12 +12,21 @@ import BookingList from "./profile/BookingList.jsx";
 export default function Profile() {
   const { user, refreshUser } = useAuth();
   const [bookings, setBookings] = useState([]);
+  const [loadErr, setLoadErr] = useState("");
   const [rescheduleId, setRescheduleId] = useState(null);
   const [newStart, setNewStart] = useState("");
 
   useEffect(() => {
     if (!user) return;
-    api("/api/bookings/mine").then(setBookings).catch(() => setBookings([]));
+    api("/api/bookings/mine")
+      .then((rows) => {
+        setBookings(rows);
+        setLoadErr("");
+      })
+      .catch((ex) => {
+        setBookings([]);
+        setLoadErr(ex.message || "Failed to load bookings");
+      });
   }, [user]);
 
   async function cancelBooking(id) {
@@ -46,6 +55,7 @@ export default function Profile() {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <h1 className="text-2xl font-bold text-on-surface">Profile</h1>
+      {loadErr && <p className="rounded-lg bg-error-container/30 px-4 py-2 text-sm text-error">{loadErr}</p>}
       <ProfileDetails user={user} refreshUser={refreshUser} />
       <BookingList title="Upcoming" bookings={upcoming} showActions onCancel={cancelBooking} onReschedule={setRescheduleId} />
       <BookingList title="Past" bookings={past} />
