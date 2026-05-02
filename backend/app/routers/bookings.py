@@ -32,6 +32,7 @@ def create_booking_route(data: BookingCreate, db: DBSession, user: CurrentUser):
             data.answers,
             data.payment_confirmed,
             data.payment_reference,
+            data.share_token,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
