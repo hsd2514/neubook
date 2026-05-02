@@ -5,7 +5,22 @@ import { api } from "../../services/api.js";
 
 export default function AdminUsers() {
   const [users, setUsers] = useState([]);
-  function load() { api("/api/users").then(setUsers).catch(() => setUsers([])); }
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  async function load() {
+    setLoading(true);
+    setError("");
+    try {
+      const rows = await api("/api/users");
+      setUsers(rows);
+    } catch (e) {
+      setUsers([]);
+      setError(e?.message || "Unable to load users");
+    } finally {
+      setLoading(false);
+    }
+  }
   useEffect(() => { load(); }, []);
 
   async function toggleActive(u) {
@@ -20,12 +35,27 @@ export default function AdminUsers() {
   return (
     <div>
       <h1 className="text-2xl font-bold text-on-surface">Users</h1>
+      {error ? (
+        <div className="mt-4 rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
+          {error}
+        </div>
+      ) : null}
       <div className="mt-6 overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest shadow-card">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-outline-variant bg-surface-container-low text-xs font-semibold uppercase text-on-surface-variant">
             <tr><th className="px-4 py-3">Name</th><th className="px-4 py-3">Email</th><th className="px-4 py-3">Role</th><th className="px-4 py-3">Active</th><th className="px-4 py-3">Actions</th></tr>
           </thead>
           <tbody>
+            {loading ? (
+              <tr>
+                <td className="px-4 py-6 text-on-surface-variant" colSpan={5}>Loading users...</td>
+              </tr>
+            ) : null}
+            {!loading && users.length === 0 ? (
+              <tr>
+                <td className="px-4 py-6 text-on-surface-variant" colSpan={5}>No users found.</td>
+              </tr>
+            ) : null}
             {users.map((u) => (
               <tr key={u.id} className="border-b border-outline-variant">
                 <td className="px-4 py-3">{u.full_name}</td>
