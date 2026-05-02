@@ -100,7 +100,6 @@ export default function ScheduleSection({ appointmentId, slotSchedule, schedules
 
   return (
     <div className="space-y-4">
-      {/* Existing schedules table */}
       {schedules?.length > 0 && (
         <div className="overflow-hidden rounded-lg border border-outline-variant">
           <table className="w-full text-left text-sm">
@@ -138,7 +137,6 @@ export default function ScheduleSection({ appointmentId, slotSchedule, schedules
         </div>
       )}
 
-      {/* Add new schedule */}
       <form onSubmit={add} className="rounded-lg border border-dashed border-outline-variant bg-surface-container-low/40 p-4">
         <p className="mb-3 text-xs font-bold uppercase text-on-surface-variant">Add time window</p>
         <div className="grid gap-3 sm:grid-cols-5">
