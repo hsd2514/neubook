@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../../services/api.js";
+import { useToast } from "../../../context/ToastContext.jsx";
 
 const defaultForm = {
   name: "",
@@ -22,6 +23,7 @@ const defaultForm = {
 export function useAppointment(id) {
   const isNew = !id || id === "new";
   const nav = useNavigate();
+  const { success, error } = useToast();
   const [form, setForm] = useState({ ...defaultForm });
   const [at, setAt] = useState(null);
   const [err, setErr] = useState("");
@@ -70,13 +72,16 @@ export function useAppointment(id) {
     try {
       if (isNew) {
         const created = await api("/api/appointments/mine", { method: "POST", body: JSON.stringify(form) });
+        success("Appointment created successfully");
         nav(`/app/appointments/${created.id}`);
       } else {
         await api(`/api/appointments/mine/${id}`, { method: "PATCH", body: JSON.stringify(form) });
         await refresh();
+        success("Changes saved successfully");
       }
     } catch (ex) {
       setErr(ex.message);
+      error(ex.message || "Failed to save changes");
     }
   }
 
