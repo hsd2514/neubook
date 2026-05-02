@@ -1,4 +1,5 @@
 from typing import Annotated
+import logging
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import JSONResponse
@@ -31,6 +32,7 @@ from app.services.phonepe_service import (
 )
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
+logger = logging.getLogger(__name__)
 
 
 def _out(b: Booking) -> BookingOut:
@@ -178,8 +180,10 @@ def phonepe_initiate(
             expire_at=result.expire_at,
         )
     except PhonePeNotConfiguredError as e:
+        logger.exception("PhonePe initiate failed: configuration/runtime issue")
         raise HTTPException(status_code=503, detail=str(e))
     except ValueError as e:
+        logger.warning("PhonePe initiate rejected: %s", e)
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -198,8 +202,10 @@ def phonepe_status(
             raw=result.raw,
         )
     except PhonePeNotConfiguredError as e:
+        logger.exception("PhonePe status failed: configuration/runtime issue")
         raise HTTPException(status_code=503, detail=str(e))
     except ValueError as e:
+        logger.warning("PhonePe status rejected: %s", e)
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -215,6 +221,8 @@ def phonepe_validate_callback(
             callback_response_data=data.callback_body,
         )
     except PhonePeNotConfiguredError as e:
+        logger.exception("PhonePe callback validation failed: configuration/runtime issue")
         raise HTTPException(status_code=503, detail=str(e))
     except ValueError as e:
+        logger.warning("PhonePe callback validation rejected: %s", e)
         raise HTTPException(status_code=400, detail=str(e))
