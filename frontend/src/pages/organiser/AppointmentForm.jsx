@@ -13,11 +13,13 @@ import ResourcesSection from "./appointment/ResourcesSection.jsx";
 import ScheduleSection from "./appointment/ScheduleSection.jsx";
 import QuestionsSection from "./appointment/QuestionsSection.jsx";
 import RulesSection from "./appointment/RulesSection.jsx";
+import SeatMapSection from "./appointment/SeatMapSection.jsx";
 
 const TABS = [
   { key: "basics", label: "Basics" },
   { key: "resources", label: "Resources" },
   { key: "schedule", label: "Schedule" },
+  { key: "seatmap", label: "Seat Map" },
   { key: "rules", label: "Booking Rules" },
   { key: "questions", label: "Questions" },
   { key: "preview", label: "Preview" },
@@ -182,6 +184,15 @@ export default function AppointmentForm() {
               schedules={at?.schedules}
               blockedSlots={at?.blocked_slots}
               resources={at?.resources}
+              onRefresh={refresh}
+            />
+          )}
+          {!isNew && tab === "seatmap" && (
+            <SeatMapSection
+              appointmentId={id}
+              resources={at?.resources}
+              seatBlocks={at?.seat_blocks}
+              seats={at?.seats}
               onRefresh={refresh}
             />
           )}

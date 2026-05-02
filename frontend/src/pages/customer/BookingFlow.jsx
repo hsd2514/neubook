@@ -8,13 +8,14 @@ import StepService from "./booking/StepService.jsx";
 import StepResource from "./booking/StepResource.jsx";
 import StepDate from "./booking/StepDate.jsx";
 import StepSlot from "./booking/StepSlot.jsx";
+import StepSeatMap from "./booking/StepSeatMap.jsx";
 import StepCapacity from "./booking/StepCapacity.jsx";
 import StepQuestions from "./booking/StepQuestions.jsx";
 import StepPayment from "./booking/StepPayment.jsx";
 import StepConfirm from "./booking/StepConfirm.jsx";
 import StepDone from "./booking/StepDone.jsx";
 
-const STEPS = ["Service", "Resource", "Date", "Slot", "Capacity", "Questions", "Payment", "Confirm"];
+const STEPS = ["Service", "Resource", "Date", "Slot", "Seats", "Capacity", "Questions", "Payment", "Confirm"];
 const isAutoMode = (at) => at?.appointment_kind === "resource" && at?.assignment_mode === "auto";
 
 export default function BookingFlow() {
@@ -29,6 +30,7 @@ export default function BookingFlow() {
   const [date, setDate] = useState("");
   const [availability, setAvailability] = useState([]);
   const [slots, setSlots] = useState([]);
+  const [selectedSeatIds, setSelectedSeatIds] = useState([]);
   const [capacity, setCapacity] = useState(1);
   const [answers, setAnswers] = useState({});
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
@@ -55,6 +57,13 @@ export default function BookingFlow() {
     }
   }, [id, token]);
 
+  const hasSeatMap = at?.booking_mode === "seat_map";
+  const seatStepIdx = hasSeatMap ? 4 : null;
+  const capacityStepIdx = at ? (at.manage_capacity ? (hasSeatMap ? 5 : 4) : null) : null;
+  const qStepIdx = at ? ((hasSeatMap ? 5 : 4) + (at.manage_capacity ? 1 : 0)) : 5;
+  const pStepIdx = at?.advance_payment ? qStepIdx + 1 : null;
+  const cStepIdx = at?.advance_payment ? qStepIdx + 2 : qStepIdx + 1;
+
   useEffect(() => {
     const isReturn = searchParams.get("pp_return") === "1";
     if (!isReturn || !at) return;
@@ -67,6 +76,7 @@ export default function BookingFlow() {
       setDate(draft.date ?? "");
       setAvailability(Array.isArray(draft.availability) ? draft.availability : []);
       setSlots(Array.isArray(draft.slots) ? draft.slots : []);
+      setSelectedSeatIds(Array.isArray(draft.selectedSeatIds) ? draft.selectedSeatIds : []);
       setCapacity(draft.capacity ?? 1);
       setAnswers(draft.answers ?? {});
     } catch {
@@ -92,7 +102,7 @@ export default function BookingFlow() {
         }
         setPaymentConfirmed(true);
         setPaymentReference(orderId);
-        setStep(at.advance_payment ? (at.manage_capacity ? 7 : 6) : 0);
+        setStep(cStepIdx);
         window.sessionStorage.removeItem(paymentDraftKey);
         const next = new URLSearchParams(searchParams);
         next.delete("pp_return");
@@ -101,7 +111,7 @@ export default function BookingFlow() {
       })
       .catch((e) => setErr(e.message))
       .finally(() => setPaymentLoading(false));
-  }, [at, paymentConfirmed, searchParams, setSearchParams]);
+  }, [at, cStepIdx, paymentConfirmed, searchParams, setSearchParams]);
 
   useEffect(() => {
     if (!at?.organiser_id) {
@@ -140,15 +150,19 @@ export default function BookingFlow() {
   }
 
   function slotContinue() {
-    if (at.manage_capacity) {
-      setStep(4);
+    if (hasSeatMap) {
+      setStep(seatStepIdx);
       return;
     }
-    if ((at.questions || []).length) {
-      setStep(4);
+    if (capacityStepIdx !== null) {
+      setStep(capacityStepIdx);
       return;
     }
-    setStep(at.advance_payment ? 5 : 5);
+    if ((at.questions || []).length > 0) {
+      setStep(qStepIdx);
+      return;
+    }
+    setStep(at.advance_payment ? pStepIdx : cStepIdx);
   }
 
   async function confirm() {
@@ -160,17 +174,18 @@ export default function BookingFlow() {
           appointment_type_id: at.id,
           resource_id: at.appointment_kind === "resource" && !isAutoMode(at) ? resourceId : null,
           start_time: slot.start,
-          capacity: at.manage_capacity ? capacity : 1,
+          capacity: hasSeatMap ? selectedSeatIds.length : (at.manage_capacity ? capacity : 1),
           answers: Object.keys(answers).length ? answers : null,
           payment_confirmed: at.advance_payment ? paymentConfirmed : false,
           payment_reference: at.advance_payment ? paymentReference || null : null,
+          seat_ids: hasSeatMap ? selectedSeatIds : null,
           ...(token ? { share_token: token } : {}),
         };
         results.push(await api("/api/bookings", { method: "POST", body: JSON.stringify(body) }));
       }
       setBookings(results);
       setBooking(results[0]);
-      setStep(7);
+      setStep(99);
     } catch (e) { setErr(e.message); }
   }
 
@@ -178,6 +193,7 @@ export default function BookingFlow() {
     "--brand-primary": branding.primary_color,
     "--brand-accent": branding.accent_color,
   } : undefined;
+
   async function initiatePhonePePayment() {
     if (!at?.advance_payment) return;
     setErr("");
@@ -190,6 +206,9 @@ export default function BookingFlow() {
       if (!slots.length) {
         throw new Error("Please select at least one slot before payment.");
       }
+      if (hasSeatMap && !selectedSeatIds.length) {
+        throw new Error("Please select seats before payment.");
+      }
       const orderId = `nb_${at.id}_${Date.now()}`;
       window.sessionStorage.setItem(
         paymentDraftKey,
@@ -199,6 +218,7 @@ export default function BookingFlow() {
           date,
           availability,
           slots,
+          selectedSeatIds,
           capacity,
           answers,
         }),
@@ -208,7 +228,7 @@ export default function BookingFlow() {
       const response = await api("/api/bookings/payments/phonepe/initiate", {
         method: "POST",
         body: JSON.stringify({
-          amount_paisa: amountPaisa * slots.length,
+          amount_paisa: amountPaisa * slots.length * (hasSeatMap ? Math.max(1, selectedSeatIds.length) : 1),
           redirect_url: redirectUrl,
           merchant_order_id: orderId,
         }),
@@ -234,13 +254,11 @@ export default function BookingFlow() {
 
   const activeSteps = STEPS.filter((s) => {
     if (s === "Resource" && isAutoMode(at)) return false;
-    if (s === "Capacity" && !at.manage_capacity) return false;
+    if (s === "Seats" && !hasSeatMap) return false;
+    if (s === "Capacity" && (!at.manage_capacity || hasSeatMap)) return false;
     if (s === "Payment" && !at.advance_payment) return false;
     return true;
   });
-  const qStep = at.manage_capacity ? 5 : 4;
-  const pStep = at.advance_payment ? qStep + 1 : null;
-  const cStep = at.advance_payment ? qStep + 2 : qStep + 1;
 
   return (
     <div className="mx-auto max-w-3xl" style={pageStyle}>
@@ -270,17 +288,17 @@ export default function BookingFlow() {
         </Card>
       )}
 
-      {/* Step indicator matching mockup tab-style */}
-      {step < 7 && (
+      {step !== 99 && (
         <div className="mb-6 flex items-center gap-1 overflow-x-auto pb-2">
           {activeSteps.map((s, i) => {
-            const stepIdx = STEPS.indexOf(s);
-            const isActive =
-              step === stepIdx ||
-              (s === "Questions" && step === qStep) ||
-              (s === "Payment" && step === pStep) ||
-              (s === "Confirm" && step === cStep);
-            const isDone = step > stepIdx || (step === 7);
+            const myStep = s === "Seats" ? seatStepIdx
+              : s === "Capacity" ? capacityStepIdx
+              : s === "Questions" ? qStepIdx
+              : s === "Payment" ? pStepIdx
+              : s === "Confirm" ? cStepIdx
+              : STEPS.indexOf(s);
+            const isActive = step === myStep;
+            const isDone = (myStep !== null && step > myStep) || step === 99;
             return (
               <div key={s} className="flex items-center gap-1">
                 {i > 0 && <span className="h-px w-4 bg-outline-variant" />}
@@ -304,47 +322,61 @@ export default function BookingFlow() {
       {step === 1 && !isAutoMode(at) && <StepResource at={at} resourceId={resourceId} setResourceId={setResourceId} onBack={() => setStep(0)} onNext={() => setStep(2)} />}
       {step === 2 && <StepDate date={date} setDate={setDate} onBack={() => setStep(isAutoMode(at) ? 0 : 1)} onNext={() => setStep(3)} />}
       {step === 3 && <StepSlot availability={availability} selectedSlots={slots} err={err} onToggle={toggleSlot} onContinue={slotContinue} onBack={() => setStep(2)} />}
-      {step === 4 && at.manage_capacity && (
+      {hasSeatMap && step === seatStepIdx && (
+        <StepSeatMap
+          at={at}
+          resourceId={resourceId}
+          selectedSeatIds={selectedSeatIds}
+          setSelectedSeatIds={setSelectedSeatIds}
+          onBack={() => setStep(3)}
+          onNext={() => setStep(capacityStepIdx !== null ? capacityStepIdx : qStepIdx)}
+        />
+      )}
+      {capacityStepIdx !== null && step === capacityStepIdx && at.manage_capacity && (
         <StepCapacity
           slots={slots}
           capacity={capacity}
           setCapacity={setCapacity}
-          onBack={() => setStep(3)}
-          onNext={() => setStep((at.questions || []).length ? qStep : at.advance_payment ? pStep : cStep)}
+          onBack={() => setStep(hasSeatMap ? seatStepIdx : 3)}
+          onNext={() => setStep((at.questions || []).length ? qStepIdx : at.advance_payment ? pStepIdx : cStepIdx)}
         />
       )}
-      {step === qStep && (
+      {step === qStepIdx && (
         <StepQuestions
           questions={at.questions || []}
           answers={answers}
           setAnswers={setAnswers}
-          onBack={() => setStep(at.manage_capacity ? 4 : 3)}
-          onNext={() => setStep(at.advance_payment ? pStep : cStep)}
+          onBack={() => {
+            if (capacityStepIdx !== null) setStep(capacityStepIdx);
+            else if (hasSeatMap) setStep(seatStepIdx);
+            else setStep(3);
+          }}
+          onNext={() => setStep(at.advance_payment ? pStepIdx : cStepIdx)}
         />
       )}
-      {pStep !== null && step === pStep && (
+      {pStepIdx !== null && step === pStepIdx && (
         <StepPayment
           confirmed={paymentConfirmed}
           reference={paymentReference}
           paymentLoading={paymentLoading}
           onInitiatePayment={initiatePhonePePayment}
-          onBack={() => setStep(qStep)}
-          onNext={() => setStep(cStep)}
+          onBack={() => setStep(qStepIdx)}
+          onNext={() => setStep(cStepIdx)}
         />
       )}
-      {step === cStep && (
+      {step === cStepIdx && (
         <StepConfirm
           at={at}
           slots={slots}
-          capacity={capacity}
+          capacity={hasSeatMap ? selectedSeatIds.length : capacity}
           err={err}
           paymentConfirmed={paymentConfirmed}
           paymentReference={paymentReference}
-          onBack={() => setStep(at.advance_payment ? pStep : qStep)}
+          onBack={() => setStep(at.advance_payment ? pStepIdx : qStepIdx)}
           onConfirm={confirm}
         />
       )}
-      {step === 7 && booking && <StepDone booking={booking} bookings={bookings} at={at} />}
+      {step === 99 && booking && <StepDone booking={booking} bookings={bookings} at={at} />}
     </div>
   );
 }

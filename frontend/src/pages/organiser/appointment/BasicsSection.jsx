@@ -49,6 +49,10 @@ export default function BasicsSection({ form, setForm }) {
         <option value="manual">Manual</option>
         <option value="auto">Auto</option>
       </Select>
+      <Select label="Booking mode" value={form.booking_mode || "capacity"} onChange={set("booking_mode")}>
+        <option value="capacity">Capacity</option>
+        <option value="seat_map">Seat map</option>
+      </Select>
       <Input label="Service amount (INR)" type="number" min={1} value={serviceAmountRupees} onChange={setServiceAmountRupees} />
     </div>
   );

@@ -14,6 +14,7 @@ const defaultForm = {
   advance_payment: false,
   manual_confirmation: false,
   assignment_mode: "manual",
+  booking_mode: "capacity",
   service_amount_paisa: 100,
   max_bookings_per_slot: 1,
 };
@@ -28,26 +29,17 @@ export function useAppointment(id) {
   const [notFound, setNotFound] = useState(false);
 
   function refresh() {
-    if (!isNew) setLoading(true);
     return api("/api/appointments/mine").then((rows) => {
       const found = rows.find((x) => String(x.id) === String(id));
       setAt(found || null);
-      setNotFound(!found);
-      setLoading(false);
+      if (!found) setNotFound(true);
       return found;
-    }).catch((ex) => {
-      setErr(ex.message || "Failed to load appointment");
-      setLoading(false);
-      throw ex;
     });
   }
 
   useEffect(() => {
-    if (isNew) {
-      setLoading(false);
-      setNotFound(false);
-      return;
-    }
+    if (isNew) return;
+    setLoading(true);
     refresh().then((found) => {
       if (found) {
         setForm({
@@ -62,16 +54,18 @@ export function useAppointment(id) {
           advance_payment: found.advance_payment,
           manual_confirmation: found.manual_confirmation,
           assignment_mode: found.assignment_mode,
+          booking_mode: found.booking_mode || "capacity",
           service_amount_paisa: found.service_amount_paisa ?? 100,
           max_bookings_per_slot: found.max_bookings_per_slot,
         });
       }
-    }).catch(() => setAt(null));
+    }).catch(() => { setAt(null); setNotFound(true); })
+      .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, isNew]);
 
   async function saveBase(e) {
-    e.preventDefault();
+    if (e?.preventDefault) e.preventDefault();
     setErr("");
     try {
       if (isNew) {
