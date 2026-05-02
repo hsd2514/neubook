@@ -15,6 +15,7 @@ from app.models.schedule import Schedule
 from app.models.blocked_slot import BlockedSlot
 from app.models.seat_block import SeatBlock
 from app.models.seat import Seat
+from app.models.booking_seat import BookingSeat
 from app.schemas.appointment import (
     AppointmentTypeCreate,
     AppointmentTypeOut,
@@ -417,6 +418,13 @@ def upsert_seat_blocks_bulk(
         raise HTTPException(status_code=404, detail="Not found")
     if not data:
         raise HTTPException(status_code=400, detail="At least one seat block is required")
+
+    seat_ids = db.execute(
+        select(Seat.id).where(Seat.appointment_type_id == appointment_id)
+    ).scalars().all()
+    if seat_ids:
+        db.query(BookingSeat).filter(BookingSeat.seat_id.in_(seat_ids)).delete(synchronize_session=False)
+        db.query(Seat).filter(Seat.id.in_(seat_ids)).delete(synchronize_session=False)
 
     db.query(SeatBlock).filter(SeatBlock.appointment_type_id == appointment_id).delete(synchronize_session=False)
     db.flush()
