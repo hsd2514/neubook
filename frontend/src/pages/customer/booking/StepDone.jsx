@@ -33,6 +33,17 @@ export default function StepDone({ booking, at }) {
             <p className="text-sm font-medium text-on-surface">{at?.name || "—"}</p>
           </div>
         </div>
+        {booking.resource_id && at?.resources?.length > 0 && (
+          <div className="flex gap-3">
+            <MapPin size={18} className="mt-0.5 shrink-0 text-primary-container" />
+            <div>
+              <p className="text-xs font-bold uppercase text-on-surface-variant">Resource</p>
+              <p className="text-sm font-medium text-on-surface">
+                {at.resources.find((r) => r.id === booking.resource_id)?.name || `#${booking.resource_id}`}
+              </p>
+            </div>
+          </div>
+        )}
         <div className="flex gap-3">
           <Users size={18} className="mt-0.5 shrink-0 text-primary-container" />
           <div>

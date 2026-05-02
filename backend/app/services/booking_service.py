@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.models.appointment_type import AppointmentType
 from app.models.booking import Booking
 from app.models.resource import Resource
+from app.services.availability import auto_assign_resource
 
 
 def create_booking(
@@ -22,7 +23,12 @@ def create_booking(
         raise ValueError("Appointment not available")
 
     if at.appointment_kind == "resource" and resource_id is None:
-        raise ValueError("Resource required")
+        if at.assignment_mode == "auto":
+            resource_id = auto_assign_resource(
+                db, appointment_type_id, start_time, capacity
+            )
+        else:
+            raise ValueError("Resource required")
 
     if resource_id is not None:
         res = db.get(Resource, resource_id)

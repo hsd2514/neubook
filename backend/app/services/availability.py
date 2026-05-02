@@ -136,3 +136,55 @@ def get_availability(
         d += timedelta(days=1)
 
     return days_out
+
+
+def auto_assign_resource(
+    db: Session,
+    appointment_type_id: int,
+    start_time: datetime,
+    capacity: int,
+) -> int:
+    """Pick the available resource with the lowest usage for the given slot.
+
+    Returns the resource id.
+    Raises ValueError when no resource can accommodate the requested capacity.
+    """
+    from sqlalchemy import func as sa_func
+
+    at = db.get(AppointmentType, appointment_type_id)
+    if not at:
+        raise ValueError("Appointment type not found")
+
+    resources = list(
+        db.execute(
+            select(Resource).where(Resource.appointment_type_id == appointment_type_id)
+        ).scalars().all()
+    )
+    if not resources:
+        raise ValueError("No resources available")
+
+    end_time = start_time + timedelta(minutes=at.duration_minutes)
+    max_per_slot = at.max_bookings_per_slot
+
+    # For each resource, compute how much capacity is already used in this slot
+    best_id: int | None = None
+    best_used: int | None = None
+    for res in resources:
+        used = db.execute(
+            select(sa_func.coalesce(sa_func.sum(Booking.capacity), 0)).where(
+                Booking.appointment_type_id == appointment_type_id,
+                Booking.resource_id == res.id,
+                Booking.status.in_(["pending", "confirmed"]),
+                Booking.start_time == start_time,
+            )
+        ).scalar_one()
+        used = int(used)
+        avail = max_per_slot - used
+        if avail >= capacity and (best_used is None or used < best_used):
+            best_id = res.id
+            best_used = used
+
+    if best_id is None:
+        raise ValueError("No resource available for the requested slot")
+
+    return best_id
