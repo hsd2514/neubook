@@ -14,16 +14,16 @@ This file tracks planned work from chat and current delivery status.
 ## P1 (High impact product features)
 
 - [x] Shareable booking link flow for unpublished appointments
-- [ ] [#19](https://github.com/hsd2514/neubook/issues/19) QR per appointment type for shareable booking link - assignee: `kdt523`
-- [ ] [#23](https://github.com/hsd2514/neubook/issues/23) Bulk slot blocking (date ranges + recurring blocks + holiday blocks) - assignee: `Aryan0550p`
-- [ ] [#22](https://github.com/hsd2514/neubook/issues/22) Calendar sync (Google first, Apple ICS support next) - assignee: `JayDaftardar`
-- [ ] [#20](https://github.com/hsd2514/neubook/issues/20) Advance payment real integration (on hold) - assignee: `hsd2514`
-- [ ] [#21](https://github.com/hsd2514/neubook/issues/21) Notification system (email/WhatsApp/SMS) (on hold) - assignee: `hsd2514`
+- [x] [#19](https://github.com/hsd2514/neubook/issues/19) QR per appointment type for shareable booking link - assignee: `kdt523`
+- [x] [#23](https://github.com/hsd2514/neubook/issues/23) Bulk slot blocking (date ranges + recurring blocks + holiday blocks) - assignee: `Aryan0550p`
+- [x] [#22](https://github.com/hsd2514/neubook/issues/22) Calendar sync (Google first, Apple ICS support next) - assignee: `JayDaftardar`
+- [x] [#20](https://github.com/hsd2514/neubook/issues/20) Advance payment real integration - assignee: `hsd2514`
+- [x] [#21](https://github.com/hsd2514/neubook/issues/21) Notification system (email/WhatsApp/SMS) - assignee: `hsd2514`
 
 ## P2 (Growth + distribution + business value)
 
-- [ ] [#24](https://github.com/hsd2514/neubook/issues/24) Embeddable booking widget (iframe/JS snippet) - assignee: `Aryan0550p`
-- [ ] [#25](https://github.com/hsd2514/neubook/issues/25) White-label booking page (logo/colors/domain) - assignee: `kdt523`
+- [x] [#24](https://github.com/hsd2514/neubook/issues/24) Embeddable booking widget (iframe/JS snippet) - assignee: `Aryan0550p`
+- [x] [#25](https://github.com/hsd2514/neubook/issues/25) White-label booking page (logo/colors/domain) - assignee: `kdt523`
 - [x] Assignment mode auto/manual fully implemented
 - [x] Flexible schedule mode fully implemented (not just weekly schema)
 
