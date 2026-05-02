@@ -8,8 +8,14 @@ export default function AdminUsers() {
   function load() { api("/api/users").then(setUsers).catch(() => setUsers([])); }
   useEffect(() => { load(); }, []);
 
-  async function toggleActive(u) { await api(`/api/users/${u.id}`, { method: "PATCH", body: JSON.stringify({ is_active: !u.is_active }) }); load(); }
-  async function setRole(id, role) { await api(`/api/users/${id}`, { method: "PATCH", body: JSON.stringify({ role }) }); load(); }
+  async function toggleActive(u) {
+    try { await api(`/api/users/${u.id}`, { method: "PATCH", body: JSON.stringify({ is_active: !u.is_active }) }); load(); }
+    catch (e) { alert(e.message); }
+  }
+  async function setRole(id, role) {
+    try { await api(`/api/users/${id}`, { method: "PATCH", body: JSON.stringify({ role }) }); load(); }
+    catch (e) { alert(e.message); }
+  }
 
   return (
     <div>

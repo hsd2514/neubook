@@ -6,13 +6,17 @@ import { api } from "../../../services/api.js";
 
 export default function ResourcesSection({ appointmentId, resources, onRefresh }) {
   const [name, setName] = useState("");
+  const [err, setErr] = useState("");
 
   async function add(e) {
     e.preventDefault();
     if (!name.trim()) return;
-    await api(`/api/appointments/mine/${appointmentId}/resources`, { method: "POST", body: JSON.stringify({ name }) });
-    setName("");
-    onRefresh();
+    setErr("");
+    try {
+      await api(`/api/appointments/mine/${appointmentId}/resources`, { method: "POST", body: JSON.stringify({ name }) });
+      setName("");
+      onRefresh();
+    } catch (ex) { setErr(ex.message); }
   }
 
   return (
@@ -32,6 +36,7 @@ export default function ResourcesSection({ appointmentId, resources, onRefresh }
           ))}
         </div>
       )}
+      {err && <p className="text-sm text-error">{err}</p>}
       <form onSubmit={add} className="flex gap-2">
         <Input label="New resource name" value={name} onChange={(e) => setName(e.target.value)} />
         <Button type="submit" className="gap-1 self-end"><Plus size={16} /> Add</Button>

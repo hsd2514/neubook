@@ -78,24 +78,25 @@ export default function StepDone({ booking, bookings, at }) {
       ))}
 
       <div className="mt-6 flex flex-wrap justify-center gap-3">
-        {first && (
-          <a
-            href={buildGoogleCalendarLink({
+        {first && first.start_time && first.end_time && (() => {
+          try {
+            const gcalUrl = buildGoogleCalendarLink({
               title: at?.name || "Appointment",
               description: list.length > 1 ? `Bookings: ${list.map((b) => `#${b.id}`).join(", ")}` : `Booking #${first.id}`,
               location: at?.resources?.find((r) => r.id === first.resource_id)?.name,
               startTime: first.start_time,
               endTime: first.end_time,
-            })}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Button variant="secondary">
-              <ExternalLink size={16} className="mr-1.5" />
-              Add first slot to Google Calendar
-            </Button>
-          </a>
-        )}
+            });
+            return (
+              <a href={gcalUrl} target="_blank" rel="noopener noreferrer">
+                <Button variant="secondary">
+                  <ExternalLink size={16} className="mr-1.5" />
+                  Add first slot to Google Calendar
+                </Button>
+              </a>
+            );
+          } catch { return null; }
+        })()}
         <Link to="/profile"><Button variant="secondary">My appointments</Button></Link>
         <Link to="/"><Button>Book another</Button></Link>
       </div>
