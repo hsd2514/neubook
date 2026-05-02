@@ -13,9 +13,12 @@ from sqlalchemy.orm import joinedload
 from app.database import Base, SessionLocal, engine
 from app.models.appointment_type import AppointmentType
 from app.models.booking import Booking
+from app.models.booking_seat import BookingSeat
 from app.models.question import Question
 from app.models.resource import Resource
 from app.models.schedule import Schedule
+from app.models.seat import Seat
+from app.models.seat_block import SeatBlock
 from app.models.user import User
 from app.utils.password import hash_password
 
@@ -123,6 +126,38 @@ def _upsert_appointments(db, organiser: User):
                 {"label": "What topic should we cover?", "field_type": "text", "is_required": True, "sort_order": 1},
             ],
         },
+        {
+            "name": "Cinema premiere seating",
+            "description": "Pick your exact seats from a visual seat map.",
+            "duration_minutes": 120,
+            "appointment_kind": "resource",
+            "slot_schedule": "weekly",
+            "is_published": True,
+            "manage_capacity": False,
+            "advance_payment": True,
+            "manual_confirmation": False,
+            "assignment_mode": "manual",
+            "booking_mode": "seat_map",
+            "service_amount_paisa": 45000,
+            "max_bookings_per_slot": 200,
+            "share_link": "cinema-seatmap-demo",
+            "resources": ["Hall A"],
+            "schedules": [
+                {"day_of_week": 5, "start_time": time(18, 0), "end_time": time(22, 0)},
+            ],
+            "seat_blocks": [
+                {"name": "Gold", "seat_class": "premium", "color": "#F59E0B", "price_override_paisa": 60000},
+                {"name": "Silver", "seat_class": "standard", "color": "#60A5FA", "price_override_paisa": 45000},
+            ],
+            "seats": [
+                {"block_name": "Gold", "row_label": "A", "col_start": 1, "count": 6},
+                {"block_name": "Silver", "row_label": "B", "col_start": 1, "count": 8},
+                {"block_name": "Silver", "row_label": "C", "col_start": 1, "count": 8},
+            ],
+            "questions": [
+                {"label": "Need accessibility support?", "field_type": "checkbox", "is_required": False, "sort_order": 1},
+            ],
+        },
     ]
 
     created = []
@@ -133,6 +168,8 @@ def _upsert_appointments(db, organiser: User):
                 .options(
                     joinedload(AppointmentType.resources),
                     joinedload(AppointmentType.schedules),
+                    joinedload(AppointmentType.seat_blocks),
+                    joinedload(AppointmentType.seats),
                     joinedload(AppointmentType.questions),
                 )
                 .where(
@@ -144,18 +181,28 @@ def _upsert_appointments(db, organiser: User):
             .scalar_one_or_none()
         )
         if not appt:
-            appt = AppointmentType(organiser_id=organiser.id, **{k: spec[k] for k in spec if k not in ("resources", "schedules", "questions")})
+            appt = AppointmentType(
+                organiser_id=organiser.id,
+                **{k: spec[k] for k in spec if k not in ("resources", "schedules", "questions", "seat_blocks", "seats")}
+            )
             db.add(appt)
             db.flush()
             print(f"  added appointment: {spec['name']}")
         else:
             for key, value in spec.items():
-                if key in ("resources", "schedules", "questions"):
+                if key in ("resources", "schedules", "questions", "seat_blocks", "seats"):
                     continue
                 setattr(appt, key, value)
             print(f"  keep  appointment: {spec['name']}")
 
         # reset child records to keep deterministic demo data
+        existing_seat_ids = [s.id for s in list(appt.seats)]
+        if existing_seat_ids:
+            db.query(BookingSeat).filter(BookingSeat.seat_id.in_(existing_seat_ids)).delete(synchronize_session=False)
+        for s in list(appt.seats):
+            db.delete(s)
+        for sb in list(appt.seat_blocks):
+            db.delete(sb)
         for r in list(appt.resources):
             db.delete(r)
         for s in list(appt.schedules):
@@ -184,6 +231,48 @@ def _upsert_appointments(db, organiser: User):
 
         for q in spec["questions"]:
             db.add(Question(appointment_type_id=appt.id, options=None, **q))
+
+        block_id_map = {}
+        for b in spec.get("seat_blocks", []):
+            block = SeatBlock(
+                appointment_type_id=appt.id,
+                resource_id=None,
+                name=b["name"],
+                seat_class=b.get("seat_class", "standard"),
+                color=b.get("color"),
+                price_override_paisa=b.get("price_override_paisa"),
+                x=0,
+                y=0,
+                width=1,
+                height=1,
+            )
+            db.add(block)
+            db.flush()
+            block_id_map[b["name"]] = block.id
+
+        for seat_group in spec.get("seats", []):
+            block_id = block_id_map.get(seat_group["block_name"])
+            if not block_id:
+                continue
+            row_label = seat_group["row_label"]
+            col_start = seat_group.get("col_start", 1)
+            count = seat_group["count"]
+            for i in range(count):
+                col_number = col_start + i
+                db.add(
+                    Seat(
+                        appointment_type_id=appt.id,
+                        block_id=block_id,
+                        resource_id=None,
+                        label=f"{row_label}{col_number}",
+                        row_label=row_label,
+                        col_number=col_number,
+                        seat_type="normal",
+                        status="active",
+                        x=i,
+                        y=0,
+                    )
+                )
 
         created.append(appt)
     db.flush()

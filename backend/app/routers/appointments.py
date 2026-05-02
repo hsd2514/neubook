@@ -13,6 +13,9 @@ from app.models.question import Question
 from app.models.resource import Resource
 from app.models.schedule import Schedule
 from app.models.blocked_slot import BlockedSlot
+from app.models.seat_block import SeatBlock
+from app.models.seat import Seat
+from app.models.booking_seat import BookingSeat
 from app.schemas.appointment import (
     AppointmentTypeCreate,
     AppointmentTypeOut,
@@ -23,6 +26,10 @@ from app.schemas.appointment import (
     QuestionOut,
     ResourceCreate,
     ResourceOut,
+    SeatBlockCreate,
+    SeatBlockOut,
+    SeatCreate,
+    SeatOut,
     ScheduleCreate,
     ScheduleOut,
 )
@@ -73,12 +80,15 @@ def _serialize_type(at: AppointmentType) -> AppointmentTypeOut:
         advance_payment=at.advance_payment,
         manual_confirmation=at.manual_confirmation,
         assignment_mode=at.assignment_mode,
+        booking_mode=at.booking_mode,
         service_amount_paisa=at.service_amount_paisa,
         max_bookings_per_slot=at.max_bookings_per_slot,
         share_link=at.share_link,
         resources=[ResourceOut.model_validate(r) for r in (at.resources or [])],
         schedules=[_serialize_schedule(s) for s in (at.schedules or [])],
         blocked_slots=[_serialize_blocked_slot(b) for b in (at.blocked_slots or [])],
+        seat_blocks=[SeatBlockOut.model_validate(sb) for sb in (at.seat_blocks or [])],
+        seats=[SeatOut.model_validate(s) for s in (at.seats or [])],
         questions=[QuestionOut.model_validate(q) for q in (at.questions or [])],
     )
 
@@ -92,6 +102,8 @@ def list_public(db: DBSession):
                 joinedload(AppointmentType.resources),
                 joinedload(AppointmentType.schedules),
                 joinedload(AppointmentType.blocked_slots),
+                joinedload(AppointmentType.seat_blocks),
+                joinedload(AppointmentType.seats),
                 joinedload(AppointmentType.questions),
             )
             .where(
@@ -115,6 +127,8 @@ def get_by_share(share_link: str, db: DBSession):
                 joinedload(AppointmentType.resources),
                 joinedload(AppointmentType.schedules),
                 joinedload(AppointmentType.blocked_slots),
+                joinedload(AppointmentType.seat_blocks),
+                joinedload(AppointmentType.seats),
                 joinedload(AppointmentType.questions),
             )
             .where(AppointmentType.share_link == share_link)
@@ -138,6 +152,8 @@ def list_mine(db: DBSession, user: Annotated[User, Depends(require_roles("organi
                 joinedload(AppointmentType.resources),
                 joinedload(AppointmentType.schedules),
                 joinedload(AppointmentType.blocked_slots),
+                joinedload(AppointmentType.seat_blocks),
+                joinedload(AppointmentType.seats),
                 joinedload(AppointmentType.questions),
             )
             .where(AppointmentType.organiser_id == user.id)
@@ -170,6 +186,7 @@ def create_mine(
         advance_payment=d["advance_payment"],
         manual_confirmation=d["manual_confirmation"],
         assignment_mode=d["assignment_mode"],
+        booking_mode=d["booking_mode"],
         service_amount_paisa=d["service_amount_paisa"],
         max_bookings_per_slot=d["max_bookings_per_slot"],
     )
@@ -183,6 +200,8 @@ def create_mine(
                 joinedload(AppointmentType.resources),
                 joinedload(AppointmentType.schedules),
                 joinedload(AppointmentType.blocked_slots),
+                joinedload(AppointmentType.seat_blocks),
+                joinedload(AppointmentType.seats),
                 joinedload(AppointmentType.questions),
             )
             .where(AppointmentType.id == at.id)
@@ -213,6 +232,8 @@ def update_mine(
                 joinedload(AppointmentType.resources),
                 joinedload(AppointmentType.schedules),
                 joinedload(AppointmentType.blocked_slots),
+                joinedload(AppointmentType.seat_blocks),
+                joinedload(AppointmentType.seats),
                 joinedload(AppointmentType.questions),
             )
             .where(AppointmentType.id == at.id)
@@ -381,6 +402,131 @@ def delete_blocked_slot(
     if not blocked or blocked.appointment_type_id != appointment_id:
         raise HTTPException(status_code=404, detail="Not found")
     db.delete(blocked)
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/mine/{appointment_id}/seat-blocks/bulk", response_model=list[SeatBlockOut])
+def upsert_seat_blocks_bulk(
+    appointment_id: int,
+    data: list[SeatBlockCreate],
+    db: DBSession,
+    user: Annotated[User, Depends(require_roles("organiser", "admin"))],
+):
+    at = db.get(AppointmentType, appointment_id)
+    if not at or at.organiser_id != user.id:
+        raise HTTPException(status_code=404, detail="Not found")
+    if not data:
+        raise HTTPException(status_code=400, detail="At least one seat block is required")
+
+    seat_ids = db.execute(
+        select(Seat.id).where(Seat.appointment_type_id == appointment_id)
+    ).scalars().all()
+    if seat_ids:
+        db.query(BookingSeat).filter(BookingSeat.seat_id.in_(seat_ids)).delete(synchronize_session=False)
+        db.query(Seat).filter(Seat.id.in_(seat_ids)).delete(synchronize_session=False)
+
+    db.query(SeatBlock).filter(SeatBlock.appointment_type_id == appointment_id).delete(synchronize_session=False)
+    db.flush()
+
+    created: list[SeatBlock] = []
+    for item in data:
+        block = SeatBlock(
+            appointment_type_id=appointment_id,
+            resource_id=item.resource_id,
+            name=item.name,
+            seat_class=item.seat_class,
+            color=item.color,
+            price_override_paisa=item.price_override_paisa,
+            x=item.x,
+            y=item.y,
+            width=item.width,
+            height=item.height,
+        )
+        db.add(block)
+        created.append(block)
+    db.commit()
+    for block in created:
+        db.refresh(block)
+    return [SeatBlockOut.model_validate(b) for b in created]
+
+
+@router.delete("/mine/{appointment_id}/seat-blocks/{seat_block_id}")
+def delete_seat_block(
+    appointment_id: int,
+    seat_block_id: int,
+    db: DBSession,
+    user: Annotated[User, Depends(require_roles("organiser", "admin"))],
+):
+    at = db.get(AppointmentType, appointment_id)
+    if not at or at.organiser_id != user.id:
+        raise HTTPException(status_code=404, detail="Not found")
+    block = db.get(SeatBlock, seat_block_id)
+    if not block or block.appointment_type_id != appointment_id:
+        raise HTTPException(status_code=404, detail="Not found")
+    db.delete(block)
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/mine/{appointment_id}/seats/bulk", response_model=list[SeatOut])
+def upsert_seats_bulk(
+    appointment_id: int,
+    data: list[SeatCreate],
+    db: DBSession,
+    user: Annotated[User, Depends(require_roles("organiser", "admin"))],
+):
+    at = db.get(AppointmentType, appointment_id)
+    if not at or at.organiser_id != user.id:
+        raise HTTPException(status_code=404, detail="Not found")
+    if not data:
+        raise HTTPException(status_code=400, detail="At least one seat is required")
+
+    db.query(Seat).filter(Seat.appointment_type_id == appointment_id).delete(synchronize_session=False)
+    db.flush()
+
+    block_ids = set(
+        db.execute(select(SeatBlock.id).where(SeatBlock.appointment_type_id == appointment_id)).scalars().all()
+    )
+
+    created: list[Seat] = []
+    for item in data:
+        if item.block_id not in block_ids:
+            raise HTTPException(status_code=400, detail=f"Invalid block_id: {item.block_id}")
+        seat = Seat(
+            appointment_type_id=appointment_id,
+            block_id=item.block_id,
+            resource_id=item.resource_id,
+            label=item.label,
+            row_label=item.row_label,
+            col_number=item.col_number,
+            seat_type=item.seat_type,
+            status=item.status,
+            x=item.x,
+            y=item.y,
+        )
+        db.add(seat)
+        created.append(seat)
+    db.commit()
+    for seat in created:
+        db.refresh(seat)
+    return [SeatOut.model_validate(s) for s in created]
+
+
+@router.delete("/mine/{appointment_id}/seats/{seat_id}")
+def delete_seat(
+    appointment_id: int,
+    seat_id: int,
+    db: DBSession,
+    user: Annotated[User, Depends(require_roles("organiser", "admin"))],
+):
+    at = db.get(AppointmentType, appointment_id)
+    if not at or at.organiser_id != user.id:
+        raise HTTPException(status_code=404, detail="Not found")
+    seat = db.get(Seat, seat_id)
+    if not seat or seat.appointment_type_id != appointment_id:
+        raise HTTPException(status_code=404, detail="Not found")
+    db.delete(seat)
     db.commit()
     return {"ok": True}
 

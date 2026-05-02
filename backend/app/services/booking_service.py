@@ -5,8 +5,10 @@ from sqlalchemy.orm import Session
 
 from app.models.appointment_type import AppointmentType
 from app.models.booking import Booking
+from app.models.booking_seat import BookingSeat
 from app.models.question import Question
 from app.models.resource import Resource
+from app.models.seat import Seat
 from app.models.user import User
 from app.services.availability import auto_assign_resource, slot_exists_for_start
 from app.services.booking_status import ACTIVE_SLOT_STATUSES, CANCELLED, COMPLETED, CONFIRMED, PENDING
@@ -97,6 +99,7 @@ def create_booking(
     payment_confirmed: bool = False,
     payment_reference: str | None = None,
     share_token: str | None = None,
+    seat_ids: list[int] | None = None,
 ) -> Booking:
     at = db.get(AppointmentType, appointment_type_id)
     if not at:
@@ -109,6 +112,7 @@ def create_booking(
     if capacity < 1:
         raise ValueError("capacity must be at least 1")
     start_time = _normalize_utc(start_time)
+    seat_ids = seat_ids or []
 
     if at.appointment_kind == "resource" and resource_id is None:
         if at.assignment_mode == "auto":
@@ -122,6 +126,29 @@ def create_booking(
         res = db.get(Resource, resource_id)
         if not res or res.appointment_type_id != appointment_type_id:
             raise ValueError("Invalid resource")
+
+    selected_seats: list[Seat] = []
+    if at.booking_mode == "seat_map":
+        if not seat_ids:
+            raise ValueError("At least one seat must be selected")
+        selected_seats = (
+            db.execute(
+                select(Seat).where(
+                    Seat.appointment_type_id == appointment_type_id,
+                    Seat.id.in_(seat_ids),
+                    Seat.status == "active",
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if len(selected_seats) != len(set(seat_ids)):
+            raise ValueError("One or more selected seats are invalid")
+        if resource_id is not None:
+            for seat in selected_seats:
+                if seat.resource_id not in (None, resource_id):
+                    raise ValueError("Selected seat does not belong to chosen resource")
+        capacity = len(selected_seats)
     if at.advance_payment and not payment_confirmed:
         raise ValueError("Payment required before booking confirmation")
     _validate_required_questions(db, appointment_type_id, answers)
@@ -153,6 +180,23 @@ def create_booking(
         if int(used) + capacity > at.max_bookings_per_slot:
             raise ValueError("Slot capacity exceeded")
 
+        if at.booking_mode == "seat_map" and seat_ids:
+            conflicting = (
+                db.query(BookingSeat)
+                .join(Booking, Booking.id == BookingSeat.booking_id)
+                .filter(
+                    Booking.appointment_type_id == appointment_type_id,
+                    Booking.status.in_(ACTIVE_SLOT_STATUSES),
+                    Booking.start_time < end_time,
+                    Booking.end_time > start_time,
+                    BookingSeat.seat_id.in_(seat_ids),
+                )
+                .with_for_update()
+                .all()
+            )
+            if conflicting:
+                raise ValueError("One or more selected seats are no longer available")
+
         status = PENDING if at.manual_confirmation else CONFIRMED
         booking = Booking(
             customer_id=customer_id,
@@ -167,6 +211,10 @@ def create_booking(
             answers=answers,
         )
         db.add(booking)
+        db.flush()
+        if at.booking_mode == "seat_map" and selected_seats:
+            for seat in selected_seats:
+                db.add(BookingSeat(booking_id=booking.id, seat_id=seat.id))
         db.commit()
         db.refresh(booking)
         _send_booking_email(

@@ -53,6 +53,7 @@ def _out(b: Booking) -> BookingOut:
         "payment_status": b.payment_status,
         "payment_reference": b.payment_reference,
         "answers": b.answers,
+        "seat_ids": [link.seat_id for link in (b.seat_links or [])],
         "created_at": b.created_at,
     }
     return BookingOut.model_validate(data)
@@ -89,6 +90,7 @@ def create_booking_route(
             data.payment_confirmed,
             data.payment_reference,
             data.share_token,
+            data.seat_ids,
         )
     except ValueError as e:
         if idempotency_key is not None:

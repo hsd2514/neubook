@@ -23,6 +23,7 @@ class BookingCreate(BaseModel):
     payment_confirmed: bool = False
     payment_reference: str | None = None
     share_token: str | None = None
+    seat_ids: list[int] | None = None
 
 
 class BookingOut(BaseModel):
@@ -40,6 +41,7 @@ class BookingOut(BaseModel):
     payment_status: str
     payment_reference: str | None
     answers: dict | list | None
+    seat_ids: list[int] = []
     created_at: datetime | None
 
     model_config = {"from_attributes": True}

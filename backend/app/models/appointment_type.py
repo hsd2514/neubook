@@ -28,6 +28,9 @@ class AppointmentType(Base):
     assignment_mode: Mapped[str] = mapped_column(
         String(32), nullable=False, default="manual"
     )  # auto | manual
+    booking_mode: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="capacity"
+    )  # capacity | seat_map
     service_amount_paisa: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
     max_bookings_per_slot: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     share_link: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True, index=True)
@@ -36,5 +39,7 @@ class AppointmentType(Base):
     resources = relationship("Resource", back_populates="appointment_type", cascade="all, delete-orphan")
     schedules = relationship("Schedule", back_populates="appointment_type", cascade="all, delete-orphan")
     blocked_slots = relationship("BlockedSlot", back_populates="appointment_type", cascade="all, delete-orphan")
+    seat_blocks = relationship("SeatBlock", back_populates="appointment_type", cascade="all, delete-orphan")
+    seats = relationship("Seat", back_populates="appointment_type", cascade="all, delete-orphan")
     questions = relationship("Question", back_populates="appointment_type", cascade="all, delete-orphan")
     bookings = relationship("Booking", back_populates="appointment_type")

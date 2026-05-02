@@ -3,16 +3,26 @@ import { Plus, User } from "lucide-react";
 import { Input } from "../../../components/ui/Input.jsx";
 import { Button } from "../../../components/ui/Button.jsx";
 import { api } from "../../../services/api.js";
+import { useToast } from "../../../context/ToastContext.jsx";
 
 export default function ResourcesSection({ appointmentId, resources, onRefresh }) {
+  const { success, error } = useToast();
   const [name, setName] = useState("");
+  const [err, setErr] = useState("");
 
   async function add(e) {
     e.preventDefault();
     if (!name.trim()) return;
-    await api(`/api/appointments/mine/${appointmentId}/resources`, { method: "POST", body: JSON.stringify({ name }) });
-    setName("");
-    onRefresh();
+    setErr("");
+    try {
+      await api(`/api/appointments/mine/${appointmentId}/resources`, { method: "POST", body: JSON.stringify({ name }) });
+      setName("");
+      onRefresh();
+      success("Resource added successfully");
+    } catch (ex) {
+      setErr(ex.message);
+      error(ex.message || "Failed to add resource");
+    }
   }
 
   return (
@@ -32,6 +42,7 @@ export default function ResourcesSection({ appointmentId, resources, onRefresh }
           ))}
         </div>
       )}
+      {err && <p className="text-sm text-error">{err}</p>}
       <form onSubmit={add} className="flex gap-2">
         <Input label="New resource name" value={name} onChange={(e) => setName(e.target.value)} />
         <Button type="submit" className="gap-1 self-end"><Plus size={16} /> Add</Button>

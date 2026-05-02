@@ -7,17 +7,20 @@ import { Badge } from "../../components/ui/Badge.jsx";
 import { Tabs } from "../../components/ui/Tabs.jsx";
 import { Toggle } from "../../components/ui/Toggle.jsx";
 import { api } from "../../services/api.js";
+import { useToast } from "../../context/ToastContext.jsx";
 import { useAppointment } from "./appointment/useAppointment.js";
 import BasicsSection from "./appointment/BasicsSection.jsx";
 import ResourcesSection from "./appointment/ResourcesSection.jsx";
 import ScheduleSection from "./appointment/ScheduleSection.jsx";
 import QuestionsSection from "./appointment/QuestionsSection.jsx";
 import RulesSection from "./appointment/RulesSection.jsx";
+import SeatMapSection from "./appointment/SeatMapSection.jsx";
 
 const TABS = [
   { key: "basics", label: "Basics" },
   { key: "resources", label: "Resources" },
   { key: "schedule", label: "Schedule" },
+  { key: "seatmap", label: "Seat Map" },
   { key: "rules", label: "Booking Rules" },
   { key: "questions", label: "Questions" },
   { key: "preview", label: "Preview" },
@@ -25,6 +28,7 @@ const TABS = [
 
 export default function AppointmentForm() {
   const { id } = useParams();
+  const { success, error } = useToast();
   const { isNew, form, setForm, at, setAt: refresh, err, saveBase, loading, notFound } = useAppointment(id);
   const [tab, setTab] = useState("basics");
   const [copied, setCopied] = useState(false);
@@ -69,11 +73,16 @@ export default function AppointmentForm() {
   async function togglePublish() {
     setForm((f) => ({ ...f, is_published: !f.is_published }));
     if (!isNew) {
-      await api(`/api/appointments/mine/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ is_published: !form.is_published }),
-      });
-      refresh();
+      try {
+        await api(`/api/appointments/mine/${id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ is_published: !form.is_published }),
+        });
+        await refresh();
+        success(`Appointment ${!form.is_published ? "published" : "unpublished"}`);
+      } catch (ex) {
+        error(ex.message || "Failed to update publish status");
+      }
     }
   }
 
@@ -182,6 +191,15 @@ export default function AppointmentForm() {
               schedules={at?.schedules}
               blockedSlots={at?.blocked_slots}
               resources={at?.resources}
+              onRefresh={refresh}
+            />
+          )}
+          {!isNew && tab === "seatmap" && (
+            <SeatMapSection
+              appointmentId={id}
+              resources={at?.resources}
+              seatBlocks={at?.seat_blocks}
+              seats={at?.seats}
               onRefresh={refresh}
             />
           )}

@@ -150,6 +150,8 @@ def get_availability(
 
                 cur = datetime.combine(d, sch.start_time, tzinfo=tz)
                 end = datetime.combine(d, sch.end_time, tzinfo=tz)
+                if end <= cur:
+                    end += timedelta(days=1)
                 while cur + duration <= end:
                     slot_start = cur
                     slot_end = cur + duration
@@ -231,6 +233,8 @@ def slot_exists_for_start(
             continue
         window_start = datetime.combine(local_day, sch.start_time, tzinfo=tz)
         window_end = datetime.combine(local_day, sch.end_time, tzinfo=tz)
+        if window_end <= window_start:
+            window_end += timedelta(days=1)
         if local_start < window_start or local_start + duration > window_end:
             continue
         delta = local_start - window_start
