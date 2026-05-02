@@ -11,6 +11,8 @@ from app.models.booking_seat import BookingSeat
 from app.models.auth_tokens import EmailOTP, PasswordResetToken
 from app.models.idempotency import IdempotencyRecord
 from app.models.waitlist import WaitlistEntry
+from app.models.provider_note import ProviderNote
+from app.models.customer_tag import CustomerTag
 
 __all__ = [
     "User",
@@ -27,4 +29,6 @@ __all__ = [
     "PasswordResetToken",
     "IdempotencyRecord",
     "WaitlistEntry",
+    "ProviderNote",
+    "CustomerTag",
 ]

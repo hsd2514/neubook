@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Button } from "../../components/ui/Button.jsx";
 import { Badge } from "../../components/ui/Badge.jsx";
 import { Modal } from "../../components/ui/Modal.jsx";
+import { ProviderNotesPanel } from "../../components/provider/ProviderNotesPanel.jsx";
+import { CustomerTags } from "../../components/provider/CustomerTags.jsx";
 import { api } from "../../services/api.js";
 
 const toneMap = { confirmed: "success", pending: "warning", cancelled: "danger" };
@@ -59,6 +61,7 @@ export default function BookingsList() {
           <thead className="border-b border-outline-variant bg-surface-container-low">
             <tr>
               <th className="px-4 py-3 text-xs font-bold uppercase text-on-surface-variant">#</th>
+              <th className="px-4 py-3 text-xs font-bold uppercase text-on-surface-variant">Customer</th>
               <th className="px-4 py-3 text-xs font-bold uppercase text-on-surface-variant">Booked on</th>
               <th className="px-4 py-3 text-xs font-bold uppercase text-on-surface-variant">Start</th>
               <th className="px-4 py-3 text-xs font-bold uppercase text-on-surface-variant">End</th>
@@ -75,6 +78,7 @@ export default function BookingsList() {
                 onClick={() => setDetail(b)}
               >
                 <td className="px-4 py-3 font-medium">{b.id}</td>
+                <td className="px-4 py-3 text-on-surface">{b.customer_name || `User #${b.customer_id}`}</td>
                 <td className="px-4 py-3 text-on-surface-variant">{new Date(b.created_at || b.start_time).toLocaleDateString()}</td>
                 <td className="px-4 py-3">{new Date(b.start_time).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</td>
                 <td className="px-4 py-3">{new Date(b.end_time).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</td>
@@ -93,7 +97,7 @@ export default function BookingsList() {
               </tr>
             ))}
             {!rows.length && (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-on-surface-variant">No bookings found.</td></tr>
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-on-surface-variant">No bookings found.</td></tr>
             )}
           </tbody>
         </table>
@@ -111,6 +115,11 @@ export default function BookingsList() {
             <div className="flex gap-2 pt-2 border-t border-outline-variant">
               {detail.status === "pending" && <Button variant="teal" onClick={() => confirmBooking(detail.id)}>Confirm</Button>}
               {detail.status !== "cancelled" && <Button variant="danger" onClick={() => cancelBooking(detail.id)}>Cancel</Button>}
+            </div>
+            {/* Provider-private CRM panel */}
+            <div className="pt-2 border-t border-outline-variant space-y-3">
+              <CustomerTags customerId={detail.customer_id} />
+              <ProviderNotesPanel customerId={detail.customer_id} />
             </div>
           </div>
         )}
