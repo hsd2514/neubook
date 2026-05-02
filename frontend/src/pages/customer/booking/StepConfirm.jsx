@@ -2,7 +2,7 @@ import { Calendar, Clock, MapPin, Users } from "lucide-react";
 import { Card } from "../../../components/ui/Card.jsx";
 import { Button } from "../../../components/ui/Button.jsx";
 
-export default function StepConfirm({ at, slot, capacity, err, onBack, onConfirm }) {
+export default function StepConfirm({ at, slot, capacity, err, paymentConfirmed, paymentReference, onBack, onConfirm }) {
   const startDate = slot ? new Date(slot.start) : null;
 
   return (
@@ -53,6 +53,12 @@ export default function StepConfirm({ at, slot, capacity, err, onBack, onConfirm
           </div>
         </div>
       </div>
+      {at.advance_payment && (
+        <div className="mt-4 rounded-lg border border-secondary/30 bg-secondary/10 p-3 text-sm text-on-surface">
+          <p className="font-semibold">Payment status: {paymentConfirmed ? "Paid" : "Pending"}</p>
+          {paymentReference && <p className="text-on-surface-variant">Reference: {paymentReference}</p>}
+        </div>
+      )}
 
       {err && <p className="mt-3 rounded-lg bg-error-container/30 px-3 py-2 text-sm text-error">{err}</p>}
 

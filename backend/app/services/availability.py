@@ -2,7 +2,7 @@
 
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta, timezone
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -11,6 +11,15 @@ from app.models.appointment_type import AppointmentType
 from app.models.booking import Booking
 from app.models.resource import Resource
 from app.models.schedule import Schedule
+
+
+def _resolve_tz(tz_name: str):
+    if tz_name.upper() in ("UTC", "Z"):
+        return timezone.utc
+    try:
+        return ZoneInfo(tz_name)
+    except ZoneInfoNotFoundError as exc:
+        raise ValueError(f"Invalid timezone: {tz_name}") from exc
 
 
 def get_availability(
@@ -25,7 +34,7 @@ def get_availability(
     if not at:
         raise ValueError("Appointment type not found")
 
-    tz = ZoneInfo(tz_name)
+    tz = _resolve_tz(tz_name)
     duration = timedelta(minutes=at.duration_minutes)
     max_per_slot = at.max_bookings_per_slot
 
@@ -136,3 +145,25 @@ def get_availability(
         d += timedelta(days=1)
 
     return days_out
+
+
+def slot_exists_for_start(
+    db: Session,
+    appointment_type_id: int,
+    resource_id: int | None,
+    start_time: datetime,
+    tz_name: str = "UTC",
+) -> bool:
+    """Return True when start_time is a schedulable slot for this appointment."""
+    if start_time.tzinfo is None:
+        return False
+
+    slot_utc = start_time.astimezone(timezone.utc).replace(second=0, microsecond=0)
+    day = slot_utc.date()
+    days = get_availability(db, appointment_type_id, resource_id, day, day, tz_name=tz_name)
+    for d in days:
+        for slot in d["slots"]:
+            slot_start_utc = slot["start"].astimezone(timezone.utc).replace(second=0, microsecond=0)
+            if slot_start_utc == slot_utc:
+                return True
+    return False

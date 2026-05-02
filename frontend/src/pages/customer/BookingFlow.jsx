@@ -10,10 +10,11 @@ import StepDate from "./booking/StepDate.jsx";
 import StepSlot from "./booking/StepSlot.jsx";
 import StepCapacity from "./booking/StepCapacity.jsx";
 import StepQuestions from "./booking/StepQuestions.jsx";
+import StepPayment from "./booking/StepPayment.jsx";
 import StepConfirm from "./booking/StepConfirm.jsx";
 import StepDone from "./booking/StepDone.jsx";
 
-const STEPS = ["Service", "Resource", "Date", "Slot", "Capacity", "Questions", "Confirm"];
+const STEPS = ["Service", "Resource", "Date", "Slot", "Capacity", "Questions", "Payment", "Confirm"];
 
 export default function BookingFlow() {
   const { id } = useParams();
@@ -26,6 +27,8 @@ export default function BookingFlow() {
   const [slot, setSlot] = useState(null);
   const [capacity, setCapacity] = useState(1);
   const [answers, setAnswers] = useState({});
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  const [paymentReference, setPaymentReference] = useState("");
   const [booking, setBooking] = useState(null);
   const [err, setErr] = useState("");
 
@@ -53,7 +56,15 @@ export default function BookingFlow() {
 
   function selectSlot(s) {
     setSlot(s);
-    setStep(at.manage_capacity ? 4 : (at.questions || []).length ? 4 : 5);
+    if (at.manage_capacity) {
+      setStep(4);
+      return;
+    }
+    if ((at.questions || []).length) {
+      setStep(4);
+      return;
+    }
+    setStep(at.advance_payment ? 5 : 5);
   }
 
   async function confirm() {
@@ -65,6 +76,8 @@ export default function BookingFlow() {
         start_time: slot.start,
         capacity: at.manage_capacity ? capacity : 1,
         answers: Object.keys(answers).length ? answers : null,
+        payment_confirmed: at.advance_payment ? paymentConfirmed : false,
+        payment_reference: at.advance_payment ? paymentReference || null : null,
       };
       setBooking(await api("/api/bookings", { method: "POST", body: JSON.stringify(body) }));
       setStep(7);
@@ -77,10 +90,12 @@ export default function BookingFlow() {
 
   const activeSteps = STEPS.filter((s) => {
     if (s === "Capacity" && !at.manage_capacity) return false;
+    if (s === "Payment" && !at.advance_payment) return false;
     return true;
   });
   const qStep = at.manage_capacity ? 5 : 4;
-  const cStep = at.manage_capacity ? 6 : 5;
+  const pStep = at.advance_payment ? qStep + 1 : null;
+  const cStep = at.advance_payment ? qStep + 2 : qStep + 1;
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -89,7 +104,11 @@ export default function BookingFlow() {
         <div className="mb-6 flex items-center gap-1 overflow-x-auto pb-2">
           {activeSteps.map((s, i) => {
             const stepIdx = STEPS.indexOf(s);
-            const isActive = step === stepIdx || (s === "Questions" && step === qStep) || (s === "Confirm" && step === cStep);
+            const isActive =
+              step === stepIdx ||
+              (s === "Questions" && step === qStep) ||
+              (s === "Payment" && step === pStep) ||
+              (s === "Confirm" && step === cStep);
             const isDone = step > stepIdx || (step === 7);
             return (
               <div key={s} className="flex items-center gap-1">
@@ -114,9 +133,46 @@ export default function BookingFlow() {
       {step === 1 && <StepResource at={at} resourceId={resourceId} setResourceId={setResourceId} onBack={() => setStep(0)} onNext={() => setStep(2)} />}
       {step === 2 && <StepDate date={date} setDate={setDate} onBack={() => setStep(1)} onNext={() => setStep(3)} />}
       {step === 3 && <StepSlot availability={availability} err={err} onSelect={selectSlot} onBack={() => setStep(2)} />}
-      {step === 4 && at.manage_capacity && <StepCapacity slot={slot} capacity={capacity} setCapacity={setCapacity} onBack={() => setStep(3)} onNext={() => setStep((at.questions || []).length ? 5 : 6)} />}
-      {step === qStep && <StepQuestions questions={at.questions || []} answers={answers} setAnswers={setAnswers} onBack={() => setStep(at.manage_capacity ? 4 : 3)} onNext={() => setStep(cStep)} />}
-      {step === cStep && <StepConfirm at={at} slot={slot} capacity={capacity} err={err} onBack={() => setStep(qStep)} onConfirm={confirm} />}
+      {step === 4 && at.manage_capacity && (
+        <StepCapacity
+          slot={slot}
+          capacity={capacity}
+          setCapacity={setCapacity}
+          onBack={() => setStep(3)}
+          onNext={() => setStep((at.questions || []).length ? qStep : at.advance_payment ? pStep : cStep)}
+        />
+      )}
+      {step === qStep && (
+        <StepQuestions
+          questions={at.questions || []}
+          answers={answers}
+          setAnswers={setAnswers}
+          onBack={() => setStep(at.manage_capacity ? 4 : 3)}
+          onNext={() => setStep(at.advance_payment ? pStep : cStep)}
+        />
+      )}
+      {pStep !== null && step === pStep && (
+        <StepPayment
+          confirmed={paymentConfirmed}
+          reference={paymentReference}
+          setConfirmed={setPaymentConfirmed}
+          setReference={setPaymentReference}
+          onBack={() => setStep(qStep)}
+          onNext={() => setStep(cStep)}
+        />
+      )}
+      {step === cStep && (
+        <StepConfirm
+          at={at}
+          slot={slot}
+          capacity={capacity}
+          err={err}
+          paymentConfirmed={paymentConfirmed}
+          paymentReference={paymentReference}
+          onBack={() => setStep(at.advance_payment ? pStep : qStep)}
+          onConfirm={confirm}
+        />
+      )}
       {step === 7 && booking && <StepDone booking={booking} at={at} />}
     </div>
   );

@@ -21,6 +21,10 @@ class Booking(Base):
     status: Mapped[str] = mapped_column(
         String(32), nullable=False, default="pending"
     )  # pending | confirmed | cancelled | completed
+    payment_status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="not_required"
+    )  # not_required | paid | failed
+    payment_reference: Mapped[str | None] = mapped_column(String(128), nullable=True)
     answers: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

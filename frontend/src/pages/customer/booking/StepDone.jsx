@@ -42,6 +42,11 @@ export default function StepDone({ booking, at }) {
         </div>
         <div className="border-t border-outline-variant pt-2">
           <Badge tone={booking.status === "confirmed" ? "success" : "warning"}>{booking.status}</Badge>
+          <span className="ml-2">
+            <Badge tone={booking.payment_status === "paid" ? "success" : "default"}>
+              payment: {booking.payment_status}
+            </Badge>
+          </span>
         </div>
       </div>
 

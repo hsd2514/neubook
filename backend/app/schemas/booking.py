@@ -20,6 +20,8 @@ class BookingCreate(BaseModel):
     start_time: datetime
     capacity: int = 1
     answers: dict | list | None = None
+    payment_confirmed: bool = False
+    payment_reference: str | None = None
 
 
 class BookingOut(BaseModel):
@@ -31,6 +33,8 @@ class BookingOut(BaseModel):
     end_time: datetime
     capacity: int
     status: str
+    payment_status: str
+    payment_reference: str | None
     answers: dict | list | None
     created_at: datetime | None
 

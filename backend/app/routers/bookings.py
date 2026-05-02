@@ -30,6 +30,8 @@ def create_booking_route(data: BookingCreate, db: DBSession, user: CurrentUser):
             data.start_time,
             data.capacity,
             data.answers,
+            data.payment_confirmed,
+            data.payment_reference,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
