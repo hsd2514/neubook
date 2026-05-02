@@ -1,5 +1,5 @@
 import secrets
-from datetime import time
+from datetime import date, time
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -32,8 +32,10 @@ def _serialize_schedule(s: Schedule) -> ScheduleOut:
     return ScheduleOut(
         id=s.id,
         appointment_type_id=s.appointment_type_id,
+        schedule_mode=s.schedule_mode,
         resource_id=s.resource_id,
         day_of_week=s.day_of_week,
+        slot_date=s.slot_date.isoformat() if s.slot_date else None,
         start_time=s.start_time.strftime("%H:%M"),
         end_time=s.end_time.strftime("%H:%M"),
     )
@@ -234,12 +236,23 @@ def add_schedule(
     at = db.get(AppointmentType, appointment_id)
     if not at or at.organiser_id != user.id:
         raise HTTPException(status_code=404, detail="Not found")
-    sh, sm = data.start_time.split(":")
-    eh, em = data.end_time.split(":")
+    try:
+        sh, sm = data.start_time.split(":")
+        eh, em = data.end_time.split(":")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid time format")
+    slot_date = None
+    if data.slot_date:
+        try:
+            slot_date = date.fromisoformat(data.slot_date)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid slot_date format")
     s = Schedule(
         appointment_type_id=appointment_id,
+        schedule_mode=data.schedule_mode,
         resource_id=data.resource_id,
         day_of_week=data.day_of_week,
+        slot_date=slot_date,
         start_time=time(int(sh), int(sm)),
         end_time=time(int(eh), int(em)),
     )

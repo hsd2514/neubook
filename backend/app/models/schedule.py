@@ -1,6 +1,6 @@
 import datetime
 
-from sqlalchemy import ForeignKey, Integer, Time
+from sqlalchemy import Date, ForeignKey, Integer, String, Time
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -16,7 +16,9 @@ class Schedule(Base):
     resource_id: Mapped[int | None] = mapped_column(
         ForeignKey("resources.id"), nullable=True, index=True
     )
-    day_of_week: Mapped[int] = mapped_column(Integer, nullable=False)  # 0=Monday .. 6=Sunday
+    schedule_mode: Mapped[str] = mapped_column(String(32), nullable=False, default="weekly")  # weekly | flexible
+    day_of_week: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 0=Monday .. 6=Sunday
+    slot_date: Mapped[datetime.date | None] = mapped_column(Date, nullable=True)
     start_time: Mapped[datetime.time] = mapped_column(Time, nullable=False)
     end_time: Mapped[datetime.time] = mapped_column(Time, nullable=False)
 

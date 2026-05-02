@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class ResourceCreate(BaseModel):
@@ -16,17 +16,37 @@ class ResourceOut(BaseModel):
 
 
 class ScheduleCreate(BaseModel):
+    schedule_mode: str = "weekly"
     resource_id: int | None = None
-    day_of_week: int = Field(..., ge=0, le=6)
+    day_of_week: int | None = Field(None, ge=0, le=6)
+    slot_date: str | None = None
     start_time: str  # "HH:MM"
     end_time: str
+
+    @model_validator(mode="after")
+    def validate_schedule_mode_fields(self):
+        if self.schedule_mode not in {"weekly", "flexible"}:
+            raise ValueError("schedule_mode must be weekly or flexible")
+        if self.schedule_mode == "weekly":
+            if self.day_of_week is None:
+                raise ValueError("day_of_week is required for weekly schedules")
+            if self.slot_date is not None:
+                raise ValueError("slot_date is not allowed for weekly schedules")
+        else:
+            if self.slot_date is None:
+                raise ValueError("slot_date is required for flexible schedules")
+            if self.day_of_week is not None:
+                raise ValueError("day_of_week is not allowed for flexible schedules")
+        return self
 
 
 class ScheduleOut(BaseModel):
     id: int
     appointment_type_id: int
+    schedule_mode: str
     resource_id: int | None
-    day_of_week: int
+    day_of_week: int | None
+    slot_date: str | None
     start_time: str
     end_time: str
 

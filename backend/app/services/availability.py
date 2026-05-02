@@ -2,7 +2,7 @@
 
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta, timezone
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -26,7 +26,10 @@ def get_availability(
     if not at:
         raise ValueError("Appointment type not found")
 
-    tz = ZoneInfo(tz_name)
+    try:
+        tz = ZoneInfo(tz_name)
+    except ZoneInfoNotFoundError:
+        tz = timezone.utc
     duration = timedelta(minutes=at.duration_minutes)
     max_per_slot = at.max_bookings_per_slot
 
@@ -79,11 +82,18 @@ def get_availability(
     d = from_date
     while d <= to_date:
         dow = d.weekday()  # Mon=0
-        day_slots: list[dict] = []
+        day_slots_map: dict[tuple, dict] = {}
 
         def add_slots_for_resource(res: Resource | None, res_id: int | None):
             for sch in schedules:
-                if sch.day_of_week != dow:
+                mode = sch.schedule_mode or "weekly"
+                if mode == "weekly":
+                    if sch.day_of_week != dow:
+                        continue
+                elif mode == "flexible":
+                    if sch.slot_date != d:
+                        continue
+                else:
                     continue
                 if sch.resource_id is not None and res_id is not None and sch.resource_id != res_id:
                     continue
@@ -102,14 +112,14 @@ def get_availability(
                     )
                     avail = max(0, max_per_slot - used)
                     if avail > 0:
-                        day_slots.append(
-                            {
+                        key = (slot_start.astimezone(timezone.utc).replace(tzinfo=timezone.utc), res_id)
+                        if key not in day_slots_map:
+                            day_slots_map[key] = {
                                 "start": slot_start,
                                 "end": slot_end,
                                 "available_capacity": avail,
                                 "resource_id": res_id,
                             }
-                        )
                     cur += duration
 
         if at.appointment_kind == "resource":
@@ -118,7 +128,7 @@ def get_availability(
         else:
             add_slots_for_resource(None, None)
 
-        day_slots.sort(key=lambda x: x["start"])
+        day_slots = sorted(day_slots_map.values(), key=lambda x: x["start"])
         if day_slots:
             days_out.append(
                 {

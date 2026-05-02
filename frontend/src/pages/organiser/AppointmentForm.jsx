@@ -79,7 +79,15 @@ export default function AppointmentForm() {
         <div className="p-5">
           {(isNew || tab === "basics") && <BasicsSection form={form} setForm={setForm} />}
           {!isNew && tab === "resources" && <ResourcesSection appointmentId={id} resources={at?.resources} onRefresh={refresh} />}
-          {!isNew && tab === "schedule" && <ScheduleSection appointmentId={id} schedules={at?.schedules} resources={at?.resources} onRefresh={refresh} />}
+          {!isNew && tab === "schedule" && (
+            <ScheduleSection
+              appointmentId={id}
+              slotSchedule={at?.slot_schedule}
+              schedules={at?.schedules}
+              resources={at?.resources}
+              onRefresh={refresh}
+            />
+          )}
           {!isNew && tab === "rules" && <RulesSection form={form} setForm={setForm} />}
           {!isNew && tab === "questions" && <QuestionsSection appointmentId={id} questions={at?.questions} onRefresh={refresh} />}
           {!isNew && tab === "preview" && (
