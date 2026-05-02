@@ -91,7 +91,20 @@ def confirm(
     user: Annotated[User, Depends(require_roles("organiser", "admin"))],
 ):
     try:
-        b = booking_service.organiser_confirm(db, booking_id, user.id)
+        b = booking_service.organiser_confirm(db, booking_id, user.id, user.role)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return _out(b)
+
+
+@router.post("/{booking_id}/complete", response_model=BookingOut)
+def complete(
+    booking_id: int,
+    db: DBSession,
+    user: Annotated[User, Depends(require_roles("organiser", "admin"))],
+):
+    try:
+        b = booking_service.mark_completed(db, booking_id, user.id, user.role)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return _out(b)

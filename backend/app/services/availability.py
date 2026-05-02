@@ -11,6 +11,7 @@ from app.models.appointment_type import AppointmentType
 from app.models.booking import Booking
 from app.models.resource import Resource
 from app.models.schedule import Schedule
+from app.services.booking_status import ACTIVE_SLOT_STATUSES
 
 
 def _resolve_tz(tz_name: str):
@@ -67,7 +68,7 @@ def get_availability(
 
     bookings_q = select(Booking).where(
         Booking.appointment_type_id == appointment_type_id,
-        Booking.status.in_(["pending", "confirmed"]),
+        Booking.status.in_(ACTIVE_SLOT_STATUSES),
         Booking.start_time < end_utc,
         Booking.end_time > start_utc,
     )

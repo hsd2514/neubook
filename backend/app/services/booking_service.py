@@ -7,6 +7,7 @@ from app.models.appointment_type import AppointmentType
 from app.models.booking import Booking
 from app.models.resource import Resource
 from app.services.availability import slot_exists_for_start
+from app.services.booking_status import ACTIVE_SLOT_STATUSES, CANCELLED, COMPLETED, CONFIRMED, PENDING
 from app.services.slot_lock import slot_lock
 
 
@@ -55,7 +56,7 @@ def create_booking(
         db.query(Booking).filter(
             Booking.appointment_type_id == appointment_type_id,
             Booking.resource_id == resource_id,
-            Booking.status.in_(["pending", "confirmed"]),
+            Booking.status.in_(ACTIVE_SLOT_STATUSES),
             Booking.start_time < end_time,
             Booking.end_time > start_time,
         ).with_for_update().all()
@@ -64,7 +65,7 @@ def create_booking(
             select(func.coalesce(func.sum(Booking.capacity), 0)).where(
                 Booking.appointment_type_id == appointment_type_id,
                 Booking.resource_id == resource_id,
-                Booking.status.in_(["pending", "confirmed"]),
+                Booking.status.in_(ACTIVE_SLOT_STATUSES),
                 Booking.start_time < end_time,
                 Booking.end_time > start_time,
             )
@@ -73,7 +74,7 @@ def create_booking(
         if int(used) + capacity > at.max_bookings_per_slot:
             raise ValueError("Slot capacity exceeded")
 
-        status = "pending" if at.manual_confirmation else "confirmed"
+        status = PENDING if at.manual_confirmation else CONFIRMED
         booking = Booking(
             customer_id=customer_id,
             appointment_type_id=appointment_type_id,
@@ -104,9 +105,11 @@ def cancel_booking(db: Session, booking_id: int, user_id: int, role: str) -> Boo
         at = db.get(AppointmentType, b.appointment_type_id)
         if not at or at.organiser_id != user_id:
             raise ValueError("Forbidden")
-    if b.status == "cancelled":
+    if b.status == CANCELLED:
         return b
-    b.status = "cancelled"
+    if b.status == COMPLETED:
+        raise ValueError("Completed booking cannot be cancelled")
+    b.status = CANCELLED
     db.commit()
     db.refresh(b)
     return b
@@ -116,7 +119,7 @@ def reschedule_booking(db: Session, booking_id: int, user_id: int, new_start: da
     b = db.get(Booking, booking_id)
     if not b or b.customer_id != user_id:
         raise ValueError("Booking not found")
-    if b.status not in ("pending", "confirmed"):
+    if b.status not in ACTIVE_SLOT_STATUSES:
         raise ValueError("Cannot reschedule")
 
     at = db.get(AppointmentType, b.appointment_type_id)
@@ -133,7 +136,7 @@ def reschedule_booking(db: Session, booking_id: int, user_id: int, new_start: da
         db.query(Booking).filter(
             Booking.appointment_type_id == b.appointment_type_id,
             Booking.resource_id == b.resource_id,
-            Booking.status.in_(["pending", "confirmed"]),
+            Booking.status.in_(ACTIVE_SLOT_STATUSES),
             Booking.start_time < end_time,
             Booking.end_time > new_start,
         ).with_for_update().all()
@@ -142,7 +145,7 @@ def reschedule_booking(db: Session, booking_id: int, user_id: int, new_start: da
             select(func.coalesce(func.sum(Booking.capacity), 0)).where(
                 Booking.appointment_type_id == b.appointment_type_id,
                 Booking.resource_id == b.resource_id,
-                Booking.status.in_(["pending", "confirmed"]),
+                Booking.status.in_(ACTIVE_SLOT_STATUSES),
                 Booking.start_time < end_time,
                 Booking.end_time > new_start,
                 Booking.id != b.id,
@@ -155,20 +158,41 @@ def reschedule_booking(db: Session, booking_id: int, user_id: int, new_start: da
         b.start_time = new_start
         b.end_time = end_time
         if at.manual_confirmation:
-            b.status = "pending"
+            b.status = PENDING
         db.commit()
         db.refresh(b)
         return b
 
 
-def organiser_confirm(db: Session, booking_id: int, organiser_id: int) -> Booking:
+def organiser_confirm(db: Session, booking_id: int, organiser_id: int, role: str) -> Booking:
     b = db.get(Booking, booking_id)
     if not b:
         raise ValueError("Booking not found")
     at = db.get(AppointmentType, b.appointment_type_id)
-    if not at or at.organiser_id != organiser_id:
+    if role != "admin" and (not at or at.organiser_id != organiser_id):
         raise ValueError("Forbidden")
-    b.status = "confirmed"
+    if b.status == CONFIRMED:
+        return b
+    if b.status != PENDING:
+        raise ValueError("Only pending bookings can be confirmed")
+    b.status = CONFIRMED
+    db.commit()
+    db.refresh(b)
+    return b
+
+
+def mark_completed(db: Session, booking_id: int, user_id: int, role: str) -> Booking:
+    b = db.get(Booking, booking_id)
+    if not b:
+        raise ValueError("Booking not found")
+    at = db.get(AppointmentType, b.appointment_type_id)
+    if role != "admin" and (not at or at.organiser_id != user_id):
+        raise ValueError("Forbidden")
+    if b.status == COMPLETED:
+        return b
+    if b.status != CONFIRMED:
+        raise ValueError("Only confirmed bookings can be completed")
+    b.status = COMPLETED
     db.commit()
     db.refresh(b)
     return b
