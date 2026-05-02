@@ -11,6 +11,12 @@ export default function BasicsSection({ form, setForm }) {
         : e.target.value,
     }));
 
+  const serviceAmountRupees = Number(form.service_amount_paisa || 0) / 100;
+  const setServiceAmountRupees = (e) => {
+    const rupees = Number(e.target.value || 0);
+    setForm((f) => ({ ...f, service_amount_paisa: Math.max(100, Math.round(rupees * 100)) }));
+  };
+
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       <div className="sm:col-span-2">
@@ -26,7 +32,6 @@ export default function BasicsSection({ form, setForm }) {
         />
       </div>
       <Input label="Duration (minutes)" type="number" min={5} value={form.duration_minutes} onChange={set("duration_minutes")} />
-      <Input label="Service amount (paise)" type="number" min={100} step={1} value={form.service_amount_paisa} onChange={set("service_amount_paisa")} />
       <Select label="Appointment kind" value={form.appointment_kind} onChange={set("appointment_kind")}>
         <option value="resource">Resource</option>
         <option value="user">User</option>
@@ -37,13 +42,14 @@ export default function BasicsSection({ form, setForm }) {
       </Select>
       <Select label="Visibility" value={form.visibility} onChange={set("visibility")}>
         <option value="public">Public</option>
-        <option value="unlisted">Unlisted</option>
+        <option value="unlisted">Unlisted (share link only)</option>
         <option value="private">Private</option>
       </Select>
       <Select label="Assignment" value={form.assignment_mode} onChange={set("assignment_mode")}>
         <option value="manual">Manual</option>
         <option value="auto">Auto</option>
       </Select>
+      <Input label="Service amount (INR)" type="number" min={1} value={serviceAmountRupees} onChange={setServiceAmountRupees} />
     </div>
   );
 }
