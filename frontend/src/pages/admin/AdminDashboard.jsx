@@ -36,13 +36,20 @@ export default function AdminDashboard() {
         ))}
       </div>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2">
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card className="flex items-center justify-between">
           <div>
             <h3 className="font-semibold text-on-surface">User management</h3>
             <p className="text-sm text-on-surface-variant">Manage roles, activate/deactivate accounts</p>
           </div>
           <Link to="/admin/users"><Button variant="ghost" className="gap-1">Manage <ArrowRight size={16} /></Button></Link>
+        </Card>
+        <Card className="flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold text-on-surface">System calendar</h3>
+            <p className="text-sm text-on-surface-variant">View all bookings across organisers</p>
+          </div>
+          <Link to="/admin/calendar"><Button variant="ghost" className="gap-1">Open <ArrowRight size={16} /></Button></Link>
         </Card>
         <Card className="flex items-center justify-between">
           <div>

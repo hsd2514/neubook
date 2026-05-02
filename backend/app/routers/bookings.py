@@ -4,10 +4,12 @@ import logging
 from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.deps import CurrentUser, DBSession, require_roles
 from app.models.appointment_type import AppointmentType
 from app.models.booking import Booking
+from app.models.resource import Resource
 from app.models.user import User
 from app.schemas.booking import BookingCreate, BookingOut, BookingReschedule
 from app.schemas.booking import (
@@ -36,7 +38,24 @@ logger = logging.getLogger(__name__)
 
 
 def _out(b: Booking) -> BookingOut:
-    return BookingOut.model_validate(b)
+    data = {
+        "id": b.id,
+        "customer_id": b.customer_id,
+        "customer_name": b.customer.full_name if b.customer else None,
+        "appointment_type_id": b.appointment_type_id,
+        "appointment_type_name": b.appointment_type.name if b.appointment_type else None,
+        "resource_id": b.resource_id,
+        "resource_name": b.resource.name if b.resource else None,
+        "start_time": b.start_time,
+        "end_time": b.end_time,
+        "capacity": b.capacity,
+        "status": b.status,
+        "payment_status": b.payment_status,
+        "payment_reference": b.payment_reference,
+        "answers": b.answers,
+        "created_at": b.created_at,
+    }
+    return BookingOut.model_validate(data)
 
 
 @router.post("", response_model=BookingOut)
@@ -107,11 +126,45 @@ def organiser_bookings(
     q = (
         select(Booking)
         .join(AppointmentType, Booking.appointment_type_id == AppointmentType.id)
+        .outerjoin(User, Booking.customer_id == User.id)
+        .outerjoin(Resource, Booking.resource_id == Resource.id)
         .where(AppointmentType.organiser_id == user.id)
-        .order_by(Booking.id.asc())
+        .order_by(Booking.start_time.asc())
+        .options(
+            selectinload(Booking.appointment_type),
+            selectinload(Booking.resource),
+            selectinload(Booking.customer),
+        )
     )
     if status_filter:
         q = q.where(Booking.status == status_filter)
+    rows = db.execute(q).scalars().all()
+    return [_out(b) for b in rows]
+
+
+@router.get("/admin", response_model=list[BookingOut])
+def admin_bookings(
+    db: DBSession,
+    user: Annotated[User, Depends(require_roles("admin"))],
+    status_filter: str | None = None,
+    organiser_id: int | None = None,
+):
+    q = (
+        select(Booking)
+        .join(AppointmentType, Booking.appointment_type_id == AppointmentType.id)
+        .outerjoin(User, Booking.customer_id == User.id)
+        .outerjoin(Resource, Booking.resource_id == Resource.id)
+        .order_by(Booking.start_time.desc())
+        .options(
+            selectinload(Booking.appointment_type),
+            selectinload(Booking.resource),
+            selectinload(Booking.customer),
+        )
+    )
+    if status_filter:
+        q = q.where(Booking.status == status_filter)
+    if organiser_id:
+        q = q.where(AppointmentType.organiser_id == organiser_id)
     rows = db.execute(q).scalars().all()
     return [_out(b) for b in rows]
 

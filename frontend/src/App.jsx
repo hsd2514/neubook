@@ -18,6 +18,7 @@ import CalendarView from "./pages/organiser/CalendarView.jsx";
 import OrganiserReports from "./pages/organiser/OrganiserReports.jsx";
 import AdminDashboard from "./pages/admin/AdminDashboard.jsx";
 import AdminUsers from "./pages/admin/AdminUsers.jsx";
+import AdminCalendarView from "./pages/admin/AdminCalendarView.jsx";
 
 function Protected({ roles, children }) {
   const { user, loading } = useAuth();
@@ -101,6 +102,7 @@ export default function App() {
       <Route path="/admin" element={<AdminShell />}>
         <Route index element={<AdminDashboard />} />
         <Route path="users" element={<AdminUsers />} />
+        <Route path="calendar" element={<AdminCalendarView />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
