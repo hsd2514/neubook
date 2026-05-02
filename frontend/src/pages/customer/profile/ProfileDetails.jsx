@@ -4,8 +4,10 @@ import { Card } from "../../../components/ui/Card.jsx";
 import { Input } from "../../../components/ui/Input.jsx";
 import { Button } from "../../../components/ui/Button.jsx";
 import { api } from "../../../services/api.js";
+import { useToast } from "../../../context/ToastContext.jsx";
 
 export default function ProfileDetails({ user, refreshUser }) {
+  const toast = useToast();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [brandDisplayName, setBrandDisplayName] = useState("");
@@ -14,7 +16,6 @@ export default function ProfileDetails({ user, refreshUser }) {
   const [brandAccentColor, setBrandAccentColor] = useState("#006a68");
   const [brandTheme, setBrandTheme] = useState("light");
   const [brandBookingDomain, setBrandBookingDomain] = useState("");
-  const [msg, setMsg] = useState("");
   const isBrandOwner = user?.role === "organiser" || user?.role === "admin";
 
   useEffect(() => {
@@ -32,7 +33,6 @@ export default function ProfileDetails({ user, refreshUser }) {
 
   async function save(e) {
     e.preventDefault();
-    setMsg("");
     try {
       await api("/api/users/me", { method: "PATCH", body: JSON.stringify({ full_name: fullName, email }) });
       if (isBrandOwner) {
@@ -49,8 +49,8 @@ export default function ProfileDetails({ user, refreshUser }) {
         });
       }
       await refreshUser();
-      setMsg("Profile updated successfully.");
-    } catch (ex) { setMsg(ex.message); }
+      toast.success("Profile updated successfully.");
+    } catch (ex) { toast.error(ex.message || "Failed to update profile."); }
   }
 
   return (
@@ -98,7 +98,6 @@ export default function ProfileDetails({ user, refreshUser }) {
         )}
         <div className="sm:col-span-2 flex items-center gap-3">
           <Button type="submit">Save changes</Button>
-          {msg && <p className={`text-sm ${msg.includes("success") ? "text-secondary" : "text-error"}`}>{msg}</p>}
         </div>
       </form>
     </Card>

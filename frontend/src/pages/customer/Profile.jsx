@@ -6,6 +6,8 @@ import { Input } from "../../components/ui/Input.jsx";
 import { Modal } from "../../components/ui/Modal.jsx";
 import { api } from "../../services/api.js";
 import { useAuth } from "../../context/AuthContext.jsx";
+import { useNavigate } from "react-router-dom";
+import { useToast } from "../../context/ToastContext.jsx";
 import ProfileDetails from "./profile/ProfileDetails.jsx";
 import BookingList from "./profile/BookingList.jsx";
 
@@ -62,10 +64,10 @@ function WaitlistSection({ waitlistEntries, onLeave }) {
 // ─── Profile ──────────────────────────────────────────────────────────────────
 export default function Profile() {
   const { user, refreshUser } = useAuth();
+  const navigate = useNavigate();
+  const toast = useToast();
   const [bookings, setBookings] = useState([]);
   const [loadErr, setLoadErr] = useState("");
-  const [rescheduleId, setRescheduleId] = useState(null);
-  const [newStart, setNewStart] = useState("");
   const [waitlistEntries, setWaitlistEntries] = useState([]);
 
   useEffect(() => {
@@ -84,7 +86,8 @@ export default function Profile() {
     try {
       await api(`/api/bookings/${id}/cancel`, { method: "POST" });
       setBookings((b) => b.map((x) => (x.id === id ? { ...x, status: "cancelled" } : x)));
-    } catch (ex) { alert(ex.message); }
+      toast.success("Appointment cancelled.");
+    } catch (ex) { toast.error(ex.message || "Failed to cancel booking."); }
   }
 
   async function leaveWaitlist(id) {
@@ -92,17 +95,12 @@ export default function Profile() {
     try {
       await api(`/api/waitlist/${id}`, { method: "DELETE" });
       setWaitlistEntries((prev) => prev.filter((e) => e.id !== id));
-    } catch (ex) { alert(ex.message); }
+      toast.success("Removed from waitlist.");
+    } catch (ex) { toast.error(ex.message || "Failed to leave waitlist."); }
   }
 
-  async function doReschedule() {
-    if (!rescheduleId || !newStart) return;
-    try {
-      await api(`/api/bookings/${rescheduleId}/reschedule`, { method: "POST", body: JSON.stringify({ start_time: new Date(newStart).toISOString() }) });
-      setBookings(await api("/api/bookings/mine"));
-      setRescheduleId(null);
-      setNewStart("");
-    } catch (ex) { alert(ex.message); }
+  function handleReschedule(booking) {
+    navigate(`/book/${booking.appointment_type_id}?reschedule=${booking.id}&resource_id=${booking.resource_id || ""}`);
   }
 
   if (!user) return <Card className="mx-auto max-w-md"><Link to="/login"><Button>Sign in</Button></Link></Card>;
@@ -116,17 +114,8 @@ export default function Profile() {
       {loadErr && <p className="rounded-lg bg-error-container/30 px-4 py-2 text-sm text-error">{loadErr}</p>}
       <ProfileDetails user={user} refreshUser={refreshUser} />
       <WaitlistSection waitlistEntries={waitlistEntries} onLeave={leaveWaitlist} />
-      <BookingList title="Upcoming" bookings={upcoming} showActions onCancel={cancelBooking} onReschedule={setRescheduleId} />
+      <BookingList title="Upcoming" bookings={upcoming} showActions onCancel={cancelBooking} onReschedule={handleReschedule} />
       <BookingList title="Past" bookings={past} />
-
-      <Modal open={!!rescheduleId} onClose={() => setRescheduleId(null)} title="Reschedule">
-        <p className="mb-2 text-sm text-on-surface-variant">Pick a new start time. Ensure the slot is available.</p>
-        <Input label="New start" type="datetime-local" value={newStart} onChange={(e) => setNewStart(e.target.value)} />
-        <div className="mt-4 flex gap-2">
-          <Button variant="secondary" onClick={() => setRescheduleId(null)}>Close</Button>
-          <Button onClick={doReschedule}>Save</Button>
-        </div>
-      </Modal>
     </div>
   );
 }

@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { Button } from "../../components/ui/Button.jsx";
 import { Badge } from "../../components/ui/Badge.jsx";
 import { api } from "../../services/api.js";
+import { useToast } from "../../context/ToastContext.jsx";
 
 export default function AdminUsers() {
+  const toast = useToast();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -24,12 +26,18 @@ export default function AdminUsers() {
   useEffect(() => { load(); }, []);
 
   async function toggleActive(u) {
-    try { await api(`/api/users/${u.id}`, { method: "PATCH", body: JSON.stringify({ is_active: !u.is_active }) }); load(); }
-    catch (e) { alert(e.message); }
+    try {
+      await api(`/api/users/${u.id}`, { method: "PATCH", body: JSON.stringify({ is_active: !u.is_active }) });
+      load();
+      toast.success(`User ${u.is_active ? "deactivated" : "activated"} successfully.`);
+    } catch (e) { toast.error(e.message || "Failed to update user."); }
   }
   async function setRole(id, role) {
-    try { await api(`/api/users/${id}`, { method: "PATCH", body: JSON.stringify({ role }) }); load(); }
-    catch (e) { alert(e.message); }
+    try {
+      await api(`/api/users/${id}`, { method: "PATCH", body: JSON.stringify({ role }) });
+      load();
+      toast.success(`Role updated to ${role}.`);
+    } catch (e) { toast.error(e.message || "Failed to update role."); }
   }
 
   return (
