@@ -149,3 +149,38 @@ def test_visibility_defaults_to_public_on_create(client, db_session):
     created = client.post("/api/appointments/mine", json=payload, headers=_auth_header(organiser))
     assert created.status_code == 200
     assert created.json()["visibility"] == "public"
+
+
+def test_embed_share_path_lookup_and_booking_submission(client, db_session):
+    organiser = _create_user(db_session, "org-vis-embed@example.com", "organiser")
+    customer = _create_user(db_session, "customer-vis-embed@example.com", "customer")
+    unlisted_appt = _create_appointment(db_session, organiser.id, visibility="unlisted", is_published=True)
+
+    slot_start = (datetime.now(timezone.utc) + timedelta(days=1)).replace(minute=0, second=0, microsecond=0)
+    db_session.add(
+        Schedule(
+            appointment_type_id=unlisted_appt.id,
+            resource_id=None,
+            schedule_mode="weekly",
+            day_of_week=slot_start.weekday(),
+            slot_date=None,
+            start_time=slot_start.time(),
+            end_time=(slot_start + timedelta(minutes=30)).time(),
+        )
+    )
+    db_session.commit()
+
+    lookup = client.get(f"/api/appointments/by-share/{unlisted_appt.share_link}")
+    assert lookup.status_code == 200
+    assert lookup.json()["id"] == unlisted_appt.id
+
+    booking_payload = {
+        "appointment_type_id": unlisted_appt.id,
+        "resource_id": None,
+        "start_time": slot_start.isoformat(),
+        "capacity": 1,
+        "answers": None,
+        "share_token": unlisted_appt.share_link,
+    }
+    booked = client.post("/api/bookings", json=booking_payload, headers=_auth_header(customer))
+    assert booked.status_code == 200
