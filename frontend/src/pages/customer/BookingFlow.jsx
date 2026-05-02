@@ -22,6 +22,7 @@ export default function BookingFlow() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const [at, setAt] = useState(null);
+  const [branding, setBranding] = useState(null);
   const [notFound, setNotFound] = useState(false);
   const [step, setStep] = useState(0);
   const [resourceId, setResourceId] = useState(null);
@@ -101,6 +102,16 @@ export default function BookingFlow() {
       .finally(() => setPaymentLoading(false));
   }, [at, paymentConfirmed, searchParams, setSearchParams]);
 
+  useEffect(() => {
+    if (!at?.organiser_id) {
+      setBranding(null);
+      return;
+    }
+    api(`/api/users/${at.organiser_id}/branding`)
+      .then(setBranding)
+      .catch(() => setBranding(null));
+  }, [at?.organiser_id]);
+
   const fromTo = useMemo(() => {
     if (!date) return null;
     const d = new Date(date + "T12:00:00");
@@ -150,6 +161,10 @@ export default function BookingFlow() {
     } catch (e) { setErr(e.message); }
   }
 
+  const pageStyle = branding ? {
+    "--brand-primary": branding.primary_color,
+    "--brand-accent": branding.accent_color,
+  } : undefined;
   async function initiatePhonePePayment() {
     if (!at?.advance_payment) return;
     setErr("");
@@ -212,7 +227,33 @@ export default function BookingFlow() {
   const cStep = at.advance_payment ? qStep + 2 : qStep + 1;
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-3xl" style={pageStyle}>
+      {branding && (
+        <Card className="mb-6 overflow-hidden p-0">
+          <div
+            className="px-5 py-4 text-white"
+            style={{ background: `linear-gradient(135deg, ${branding.primary_color}, ${branding.accent_color})` }}
+          >
+            <div className="flex items-center gap-3">
+              {branding.logo_url ? (
+                <img src={branding.logo_url} alt={`${branding.display_name} logo`} className="h-10 w-10 rounded-md bg-white/15 object-cover" />
+              ) : (
+                <div className="flex h-10 w-10 items-center justify-center rounded-md bg-white/20 text-sm font-bold">
+                  {(branding.display_name || "B").slice(0, 1).toUpperCase()}
+                </div>
+              )}
+              <div>
+                <p className="text-xs uppercase tracking-wide text-white/80">Hosted by</p>
+                <h2 className="text-lg font-semibold">{branding.display_name}</h2>
+              </div>
+            </div>
+          </div>
+          {branding.theme === "dark" && (
+            <p className="px-5 py-2 text-xs text-on-surface-variant">Brand preference: dark theme</p>
+          )}
+        </Card>
+      )}
+
       {/* Step indicator matching mockup tab-style */}
       {step < 7 && (
         <div className="mb-6 flex items-center gap-1 overflow-x-auto pb-2">

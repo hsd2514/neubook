@@ -38,6 +38,12 @@ class UserPublic(BaseModel):
     email: str
     role: str
     is_active: bool
+    brand_display_name: str | None = None
+    brand_logo_url: str | None = None
+    brand_primary_color: str | None = None
+    brand_accent_color: str | None = None
+    brand_theme: str | None = None
+    brand_booking_domain: str | None = None
     created_at: datetime | None = None
 
     model_config = {"from_attributes": True}
