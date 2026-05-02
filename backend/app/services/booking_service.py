@@ -16,6 +16,10 @@ from app.services.email_service import send_email
 from app.services.slot_lock import slot_lock
 
 
+class SlotFullError(ValueError):
+    pass
+
+
 def _normalize_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         raise ValueError("start_time must include timezone")
@@ -189,7 +193,7 @@ def create_booking(
             slot_limit = at.max_bookings_per_slot
 
         if int(used) + capacity > slot_limit:
-            raise ValueError("Slot capacity exceeded")
+            raise SlotFullError("Slot capacity exceeded")
 
         if at.booking_mode == "seat_map" and seat_ids:
             conflicting = (
@@ -206,7 +210,7 @@ def create_booking(
                 .all()
             )
             if conflicting:
-                raise ValueError("One or more selected seats are no longer available")
+                raise SlotFullError("One or more selected seats are no longer available")
 
         status = PENDING if at.manual_confirmation else CONFIRMED
         booking = Booking(
@@ -315,7 +319,7 @@ def reschedule_booking(db: Session, booking_id: int, user_id: int, new_start: da
         ).scalar_one()
 
         if int(used) + b.capacity > at.max_bookings_per_slot:
-            raise ValueError("Slot capacity exceeded")
+            raise SlotFullError("Slot capacity exceeded")
 
         b.start_time = new_start
         b.end_time = end_time

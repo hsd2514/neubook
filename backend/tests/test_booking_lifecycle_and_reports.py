@@ -145,7 +145,7 @@ def test_booking_publication_and_capacity_invariants(client, db_session):
     assert first.json()["status"] == "confirmed"
 
     second = client.post("/api/bookings", json=first_payload, headers=_auth_header(customer))
-    assert second.status_code == 400
+    assert second.status_code == 409
     assert second.json()["detail"] == "Slot capacity exceeded"
 
 
