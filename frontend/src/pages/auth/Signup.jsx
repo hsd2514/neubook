@@ -25,7 +25,7 @@ export default function Signup() {
     <div className="flex min-h-screen items-center justify-center bg-surface p-4">
       <Card className="w-full max-w-md animate-enter shadow-elevated stagger-1">
         <h1 className="mb-1 text-2xl font-bold text-on-surface">Create account</h1>
-        <p className="mb-6 text-sm text-on-surface-variant">Verification code sent to server log (dev).</p>
+        <p className="mb-6 text-sm text-on-surface-variant">We will send a verification code to your email.</p>
         <form onSubmit={onSubmit} className="space-y-4">
           <Input label="Full name" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
           <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />

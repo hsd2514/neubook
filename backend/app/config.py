@@ -23,6 +23,14 @@ class Settings(BaseSettings):
     phonepe_env: str = "SANDBOX"
     phonepe_callback_username: str | None = None
     phonepe_callback_password: str | None = None
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_from_email: str | None = None
+    smtp_from_name: str = "Neubook"
+    smtp_use_tls: bool = True
+    frontend_base_url: str = "http://localhost:5173"
 
     @property
     def lock_redis_url(self) -> str | None:

@@ -35,8 +35,21 @@ Vite proxies `/api` to `http://127.0.0.1:8000`. For a different API origin, set 
 
 ## Auth flows
 
-- Signup → OTP in **server console** (dev) → verify → JWT.
-- Forgot password → token in **server console** (dev) → reset form.
+- Signup → OTP by email (falls back to server console when SMTP is not configured) → verify → JWT.
+- Forgot password → reset link by email (falls back to server console when SMTP is not configured).
+
+## Email (Google SMTP)
+
+Set these in `backend/.env`:
+
+- `SMTP_HOST=smtp.gmail.com`
+- `SMTP_PORT=587`
+- `SMTP_USERNAME=<your-gmail>`
+- `SMTP_PASSWORD=<google-app-password>`
+- `SMTP_FROM_EMAIL=<your-gmail>`
+- `SMTP_FROM_NAME=Neubook`
+- `SMTP_USE_TLS=true`
+- `FRONTEND_BASE_URL=http://localhost:5173`
 
 ## Stack reference
 

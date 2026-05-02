@@ -102,7 +102,7 @@ def get_by_share(share_link: str, db: DBSession):
         .unique()
         .scalar_one_or_none()
     )
-    if not at or not at.is_published:
+    if not at:
         raise HTTPException(status_code=404, detail="Not found")
     if at.visibility == "private":
         raise HTTPException(status_code=404, detail="Not found")
