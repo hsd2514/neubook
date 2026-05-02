@@ -26,3 +26,4 @@ class WaitlistEntry(Base):
 
     customer = relationship("User", back_populates="waitlist_entries", foreign_keys=[customer_id])
     appointment_type = relationship("AppointmentType", back_populates="waitlist_entries")
+    resource = relationship("Resource")
