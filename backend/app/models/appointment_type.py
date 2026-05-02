@@ -43,3 +43,4 @@ class AppointmentType(Base):
     seats = relationship("Seat", back_populates="appointment_type", cascade="all, delete-orphan")
     questions = relationship("Question", back_populates="appointment_type", cascade="all, delete-orphan")
     bookings = relationship("Booking", back_populates="appointment_type")
+    waitlist_entries = relationship("WaitlistEntry", back_populates="appointment_type")

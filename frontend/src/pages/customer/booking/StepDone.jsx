@@ -42,7 +42,7 @@ function BookingSummary({ booking, at }) {
         </div>
       </div>
       <div className="border-t border-outline-variant pt-2">
-        <Badge tone={booking.status === "confirmed" ? "success" : "warning"}>{booking.status}</Badge>
+        <Badge tone={booking.status === "confirmed" ? "success" : booking.status === "waitlisted" || booking.status === "notified" ? "warning" : "warning"}>{booking.status}</Badge>
         <span className="ml-2">
           <Badge tone={booking.payment_status === "paid" ? "success" : "default"}>
             payment: {booking.payment_status}

@@ -4,6 +4,8 @@ import { Button } from "../../../components/ui/Button.jsx";
 
 export default function StepConfirm({ at, slots, capacity, err, paymentConfirmed, paymentReference, onBack, onConfirm }) {
   const slotList = slots || [];
+  const fullSlots = slotList.filter((s) => (s.available_capacity ?? 1) === 0);
+  const hasFullSlots = fullSlots.length > 0;
 
   return (
     <Card>
@@ -69,11 +71,22 @@ export default function StepConfirm({ at, slots, capacity, err, paymentConfirmed
         </div>
       )}
 
+      {hasFullSlots && (
+        <div className="mt-3 rounded-lg border border-[#f59e0b]/30 bg-[#fef3c7] px-3 py-2 text-sm">
+          <p className="font-semibold text-[#92400e]">⚠️ Some selected slots are full</p>
+          <p className="mt-0.5 text-xs text-[#78350f]">
+            Confirming will attempt to book available slots. For full slots you'll be offered to join the waitlist and notified when a spot opens.
+          </p>
+        </div>
+      )}
+
       {err && <p className="mt-3 rounded-lg bg-error-container/30 px-3 py-2 text-sm text-error">{err}</p>}
 
       <div className="mt-5 flex gap-2">
         <Button variant="secondary" onClick={onBack}>Back</Button>
-        <Button onClick={onConfirm}>Confirm {slotList.length > 1 ? "bookings" : "booking"}</Button>
+        <Button onClick={onConfirm}>
+          {hasFullSlots ? "Confirm / Join Waitlist" : `Confirm ${slotList.length > 1 ? "bookings" : "booking"}`}
+        </Button>
       </div>
     </Card>
   );

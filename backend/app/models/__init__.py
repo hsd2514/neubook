@@ -10,6 +10,7 @@ from app.models.booking import Booking
 from app.models.booking_seat import BookingSeat
 from app.models.auth_tokens import EmailOTP, PasswordResetToken
 from app.models.idempotency import IdempotencyRecord
+from app.models.waitlist import WaitlistEntry
 
 __all__ = [
     "User",
@@ -25,4 +26,5 @@ __all__ = [
     "EmailOTP",
     "PasswordResetToken",
     "IdempotencyRecord",
+    "WaitlistEntry",
 ]

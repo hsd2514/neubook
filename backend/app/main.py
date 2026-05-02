@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import appointments, auth, bookings, reports, users
+from app.routers import appointments, auth, bookings, reports, users, waitlist
 
 app = FastAPI(title="Neubook API", version="0.1.0")
 
@@ -20,6 +20,7 @@ app.include_router(appointments.router, prefix="/api")
 app.include_router(bookings.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
 app.include_router(reports.router, prefix="/api")
+app.include_router(waitlist.router, prefix="/api")
 
 
 @app.get("/health")

@@ -14,6 +14,12 @@ from app.services.availability import auto_assign_resource, slot_exists_for_star
 from app.services.booking_status import ACTIVE_SLOT_STATUSES, CANCELLED, COMPLETED, CONFIRMED, PENDING
 from app.services.email_service import send_email
 from app.services.slot_lock import slot_lock
+from app.services import waitlist_service
+
+
+class SlotFullError(ValueError):
+    """Raised when a slot's capacity is exhausted – caller can offer waitlist."""
+    pass
 
 
 def _normalize_utc(value: datetime) -> datetime:
@@ -178,7 +184,7 @@ def create_booking(
         ).scalar_one()
 
         if int(used) + capacity > at.max_bookings_per_slot:
-            raise ValueError("Slot capacity exceeded")
+            raise SlotFullError("Slot capacity exceeded")
 
         if at.booking_mode == "seat_map" and seat_ids:
             conflicting = (
@@ -195,7 +201,7 @@ def create_booking(
                 .all()
             )
             if conflicting:
-                raise ValueError("One or more selected seats are no longer available")
+                raise SlotFullError("One or more selected seats are no longer available")
 
         status = PENDING if at.manual_confirmation else CONFIRMED
         booking = Booking(
@@ -256,6 +262,10 @@ def cancel_booking(db: Session, booking_id: int, user_id: int, role: str) -> Boo
             "Booking cancelled",
             "Your booking has been cancelled.",
             "A booking has been cancelled.",
+        )
+        # Promote next waitlist entry if there's now a free spot
+        waitlist_service.promote_next_from_waitlist(
+            db, b.appointment_type_id, b.resource_id, b.start_time, freed_capacity=b.capacity
         )
     return b
 

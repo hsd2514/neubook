@@ -160,15 +160,15 @@ def get_availability(
                         continue
                     used = _overlap_usage(slot_start, slot_end, res_id)
                     avail = max(0, max_per_slot - used)
-                    if avail > 0:
-                        key = (slot_start.astimezone(timezone.utc).replace(second=0, microsecond=0), res_id)
-                        if key not in day_slots_map:
-                            day_slots_map[key] = {
-                                "start": slot_start,
-                                "end": slot_end,
-                                "available_capacity": avail,
-                                "resource_id": res_id,
-                            }
+                    # Include both available AND full (avail=0) slots so customer can join waitlist
+                    key = (slot_start.astimezone(timezone.utc).replace(second=0, microsecond=0), res_id)
+                    if key not in day_slots_map:
+                        day_slots_map[key] = {
+                            "start": slot_start,
+                            "end": slot_end,
+                            "available_capacity": avail,
+                            "resource_id": res_id,
+                        }
                     cur += duration
 
         if at.appointment_kind == "resource":
