@@ -18,6 +18,9 @@ class AppointmentType(Base):
     slot_schedule: Mapped[str] = mapped_column(
         String(32), nullable=False, default="weekly"
     )  # weekly | flexible
+    visibility: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="public"
+    )  # public | unlisted | private
     is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     manage_capacity: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     advance_payment: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

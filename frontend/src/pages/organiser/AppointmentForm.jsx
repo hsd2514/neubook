@@ -26,6 +26,7 @@ export default function AppointmentForm() {
   const { id } = useParams();
   const { isNew, form, setForm, at, setAt: refresh, err, saveBase } = useAppointment(id);
   const [tab, setTab] = useState("basics");
+  const previewHref = !isNew && at?.share_link && form.visibility === "unlisted" ? `/book/share/${at.share_link}` : `/book/${id}`;
 
   if (!isNew && !at) return <p className="p-8 text-on-surface-variant">Loading…</p>;
 
@@ -53,6 +54,7 @@ export default function AppointmentForm() {
             {!isNew && (
               <div className="flex items-center gap-2 mt-0.5">
                 <Badge tone={form.is_published ? "success" : "default"}>{form.is_published ? "Published" : "Draft"}</Badge>
+                <Badge tone="teal">{(form.visibility || "public").toUpperCase()}</Badge>
                 {at.share_link && <code className="text-xs text-on-surface-variant bg-surface-container-high rounded px-1.5 py-0.5">{at.share_link}</code>}
               </div>
             )}
@@ -61,8 +63,8 @@ export default function AppointmentForm() {
         <div className="flex items-center gap-3">
           {!isNew && (
             <>
-              <Toggle checked={form.is_published} onChange={togglePublish} label="Published" />
-              <Link to={`/book/${id}`} target="_blank">
+              <Toggle checked={form.is_published} onChange={togglePublish} label={`Published (${form.visibility || "public"})`} />
+              <Link to={previewHref} target="_blank">
                 <Button variant="ghost" className="gap-1 text-sm"><ExternalLink size={16} /> Preview</Button>
               </Link>
             </>
@@ -105,7 +107,7 @@ export default function AppointmentForm() {
                 </div>
                 <p className="mt-3 text-xs text-on-surface-variant">Resources: {at.resources?.length || 0} · Schedules: {at.schedules?.length || 0} · Questions: {at.questions?.length || 0}</p>
               </div>
-              <Link to={`/book/${id}`} target="_blank">
+              <Link to={previewHref} target="_blank">
                 <Button className="gap-1 mt-2"><ExternalLink size={16} /> Open booking flow</Button>
               </Link>
             </div>

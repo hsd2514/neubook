@@ -74,6 +74,7 @@ export default function App() {
       <Route element={<CustomerLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/book/:id" element={<BookingFlow />} />
+        <Route path="/book/share/:shareLink" element={<BookingFlow />} />
         <Route
           path="/profile"
           element={

@@ -18,7 +18,7 @@ const STEPS = ["Service", "Resource", "Date", "Slot", "Capacity", "Questions", "
 const isAutoMode = (at) => at?.appointment_kind === "resource" && at?.assignment_mode === "auto";
 
 export default function BookingFlow() {
-  const { id } = useParams();
+  const { id, shareLink } = useParams();
   const { user } = useAuth();
   const [at, setAt] = useState(null);
   const [step, setStep] = useState(0);
@@ -34,10 +34,20 @@ export default function BookingFlow() {
   const [err, setErr] = useState("");
 
   useEffect(() => {
-    api("/api/appointments/public")
-      .then((rows) => setAt(rows.find((x) => String(x.id) === String(id)) || null))
+    if (id) {
+      api("/api/appointments/public")
+        .then((rows) => setAt(rows.find((x) => String(x.id) === String(id)) || null))
+        .catch(() => setAt(null));
+      return;
+    }
+    if (!shareLink) {
+      setAt(null);
+      return;
+    }
+    api(`/api/appointments/by-share/${shareLink}`)
+      .then(setAt)
       .catch(() => setAt(null));
-  }, [id]);
+  }, [id, shareLink]);
 
   const fromTo = useMemo(() => {
     if (!date) return null;
@@ -52,10 +62,10 @@ export default function BookingFlow() {
     const rid = at.appointment_kind === "resource" && !isAutoMode(at) ? resourceId : null;
     const params = new URLSearchParams({ from_date: fromTo.from, to_date: fromTo.to, tz: "UTC" });
     if (rid) params.set("resource_id", rid);
-    api(`/api/appointments/${id}/availability?${params}`)
+    api(`/api/appointments/${at.id}/availability?${params}`)
       .then(setAvailability)
       .catch((e) => setErr(e.message));
-  }, [step, date, resourceId, id, at, fromTo]);
+  }, [step, date, resourceId, at, fromTo]);
 
   function selectSlot(s) {
     setSlot(s);
@@ -74,7 +84,7 @@ export default function BookingFlow() {
     setErr("");
     try {
       const body = {
-        appointment_type_id: Number(id),
+        appointment_type_id: Number(at.id),
         resource_id: at.appointment_kind === "resource" && !isAutoMode(at) ? resourceId : null,
         start_time: slot.start,
         capacity: at.manage_capacity ? capacity : 1,

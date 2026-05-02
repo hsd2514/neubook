@@ -36,6 +36,7 @@ export default function AppointmentList() {
                 <th className="px-4 py-3 text-xs font-bold uppercase text-on-surface-variant">Name</th>
                 <th className="px-4 py-3 text-xs font-bold uppercase text-on-surface-variant">Duration</th>
                 <th className="px-4 py-3 text-xs font-bold uppercase text-on-surface-variant">Kind</th>
+                <th className="px-4 py-3 text-xs font-bold uppercase text-on-surface-variant">Visibility</th>
                 <th className="px-4 py-3 text-xs font-bold uppercase text-on-surface-variant">Resources</th>
                 <th className="px-4 py-3 text-xs font-bold uppercase text-on-surface-variant">Schedules</th>
                 <th className="px-4 py-3 text-xs font-bold uppercase text-on-surface-variant">Status</th>
@@ -50,13 +51,14 @@ export default function AppointmentList() {
                   </td>
                   <td className="px-4 py-3">{a.duration_minutes} min</td>
                   <td className="px-4 py-3 capitalize">{a.appointment_kind}</td>
+                  <td className="px-4 py-3 capitalize">{a.visibility || "public"}</td>
                   <td className="px-4 py-3">{a.resources?.length || 0}</td>
                   <td className="px-4 py-3">{a.schedules?.length || 0}</td>
                   <td className="px-4 py-3">{a.is_published ? <Badge tone="success">Published</Badge> : <Badge>Draft</Badge>}</td>
                 </tr>
               ))}
               {!items.length && (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-on-surface-variant">No appointment types yet. Create your first one.</td></tr>
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-on-surface-variant">No appointment types yet. Create your first one.</td></tr>
               )}
             </tbody>
           </table>
@@ -77,7 +79,7 @@ export default function AppointmentList() {
                   <Link key={a.id} to={`/app/appointments/${a.id}`}>
                     <Card className="transition hover:shadow-elevated hover:border-primary-container/50">
                       <p className="font-medium text-on-surface">{a.name}</p>
-                      <p className="mt-1 text-xs text-on-surface-variant">{a.duration_minutes} min · {a.appointment_kind} · {a.resources?.length || 0} resources</p>
+                      <p className="mt-1 text-xs text-on-surface-variant">{a.duration_minutes} min · {a.appointment_kind} · {a.visibility || "public"} · {a.resources?.length || 0} resources</p>
                     </Card>
                   </Link>
                 ))}

@@ -50,6 +50,7 @@ def _serialize_type(at: AppointmentType) -> AppointmentTypeOut:
         duration_minutes=at.duration_minutes,
         appointment_kind=at.appointment_kind,
         slot_schedule=at.slot_schedule,
+        visibility=at.visibility,
         is_published=at.is_published,
         manage_capacity=at.manage_capacity,
         advance_payment=at.advance_payment,
@@ -73,7 +74,10 @@ def list_public(db: DBSession):
                 joinedload(AppointmentType.schedules),
                 joinedload(AppointmentType.questions),
             )
-            .where(AppointmentType.is_published.is_(True))
+            .where(
+                AppointmentType.is_published.is_(True),
+                AppointmentType.visibility == "public",
+            )
         )
         .unique()
         .scalars()
@@ -97,7 +101,9 @@ def get_by_share(share_link: str, db: DBSession):
         .unique()
         .scalar_one_or_none()
     )
-    if not at:
+    if not at or not at.is_published:
+        raise HTTPException(status_code=404, detail="Not found")
+    if at.visibility == "private":
         raise HTTPException(status_code=404, detail="Not found")
     return _serialize_type(at)
 
@@ -136,6 +142,7 @@ def create_mine(
         duration_minutes=d["duration_minutes"],
         appointment_kind=d["appointment_kind"],
         slot_schedule=d["slot_schedule"],
+        visibility=d["visibility"],
         is_published=d["is_published"],
         manage_capacity=d["manage_capacity"],
         advance_payment=d["advance_payment"],
