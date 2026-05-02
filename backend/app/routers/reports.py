@@ -9,6 +9,7 @@ from app.deps import DBSession, require_roles
 from app.models.appointment_type import AppointmentType
 from app.models.booking import Booking
 from app.models.user import User
+from app.services.booking_status import PENDING, REPORTABLE_BOOKING_STATUSES
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -42,7 +43,12 @@ def organiser_summary(db: DBSession, user: Annotated[User, Depends(require_roles
         }
 
     total_bookings = db.execute(
-        select(func.count()).select_from(Booking).where(Booking.appointment_type_id.in_(type_ids))
+        select(func.count())
+        .select_from(Booking)
+        .where(
+            Booking.appointment_type_id.in_(type_ids),
+            Booking.status.in_(REPORTABLE_BOOKING_STATUSES),
+        )
     ).scalar_one()
     today = db.execute(
         select(func.count())
@@ -51,13 +57,13 @@ def organiser_summary(db: DBSession, user: Annotated[User, Depends(require_roles
             Booking.appointment_type_id.in_(type_ids),
             Booking.start_time >= start_day,
             Booking.start_time < end_day,
-            Booking.status.in_(["pending", "confirmed"]),
+            Booking.status.in_(REPORTABLE_BOOKING_STATUSES),
         )
     ).scalar_one()
     pending = db.execute(
         select(func.count())
         .select_from(Booking)
-        .where(Booking.appointment_type_id.in_(type_ids), Booking.status == "pending")
+        .where(Booking.appointment_type_id.in_(type_ids), Booking.status == PENDING)
     ).scalar_one()
 
     return {
@@ -76,7 +82,7 @@ def insights(db: DBSession, user: Annotated[User, Depends(require_roles("organis
     bookings = db.execute(
         select(Booking).where(
             Booking.appointment_type_id.in_(type_ids),
-            Booking.status.in_(["pending", "confirmed", "completed"]),
+            Booking.status.in_(REPORTABLE_BOOKING_STATUSES),
         )
     ).scalars().all()
 
