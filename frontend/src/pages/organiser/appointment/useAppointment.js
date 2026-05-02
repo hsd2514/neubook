@@ -23,17 +23,30 @@ export function useAppointment(id) {
   const [form, setForm] = useState({ ...defaultForm });
   const [at, setAt] = useState(null);
   const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(!isNew);
+  const [notFound, setNotFound] = useState(false);
 
   function refresh() {
+    if (!isNew) setLoading(true);
     return api("/api/appointments/mine").then((rows) => {
       const found = rows.find((x) => String(x.id) === String(id));
       setAt(found || null);
+      setNotFound(!found);
+      setLoading(false);
       return found;
+    }).catch((ex) => {
+      setErr(ex.message || "Failed to load appointment");
+      setLoading(false);
+      throw ex;
     });
   }
 
   useEffect(() => {
-    if (isNew) return;
+    if (isNew) {
+      setLoading(false);
+      setNotFound(false);
+      return;
+    }
     refresh().then((found) => {
       if (found) {
         setForm({
@@ -71,5 +84,5 @@ export function useAppointment(id) {
     }
   }
 
-  return { isNew, form, setForm, at, setAt: refresh, err, setErr, saveBase };
+  return { isNew, form, setForm, at, setAt: refresh, err, setErr, saveBase, loading, notFound };
 }

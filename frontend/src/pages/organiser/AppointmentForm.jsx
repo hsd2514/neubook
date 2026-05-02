@@ -24,12 +24,21 @@ const TABS = [
 
 export default function AppointmentForm() {
   const { id } = useParams();
-  const { isNew, form, setForm, at, setAt: refresh, err, saveBase } = useAppointment(id);
+  const { isNew, form, setForm, at, setAt: refresh, err, saveBase, loading, notFound } = useAppointment(id);
   const [tab, setTab] = useState("basics");
   const previewHref = !isNew && at?.share_link && form.visibility === "unlisted" ? `/book/share/${at.share_link}` : `/book/${id}`;
+  const embedUrl = at?.share_link ? `${window.location.origin}/embed/book/share/${encodeURIComponent(at.share_link)}` : "";
+  const iframeSnippet = embedUrl
+    ? `<iframe src="${embedUrl}" width="100%" height="760" style="border:0;" loading="lazy" title="Book appointment"></iframe>`
+    : "";
+  const jsSnippet = embedUrl
+    ? `<div id="neubook-widget"></div><script>(function(){var f=document.createElement('iframe');f.src='${embedUrl}';f.style.width='100%';f.style.height='760px';f.style.border='0';f.loading='lazy';f.title='Book appointment';document.getElementById('neubook-widget').appendChild(f);})();</script>`
+    : "";
   const [copied, setCopied] = useState(false);
+  const [copiedEmbed, setCopiedEmbed] = useState("");
 
-  if (!isNew && !at) return <p className="p-8 text-on-surface-variant">Loading…</p>;
+  if (!isNew && loading) return <p className="p-8 text-on-surface-variant">Loading…</p>;
+  if (!isNew && notFound) return <p className="p-8 text-error">Appointment not found or inaccessible.</p>;
 
   async function togglePublish() {
     setForm((f) => ({ ...f, is_published: !f.is_published }));
@@ -39,6 +48,18 @@ export default function AppointmentForm() {
         body: JSON.stringify({ is_published: !form.is_published }),
       });
       refresh();
+    }
+  }
+
+  async function copyEmbed(kind) {
+    const text = kind === "iframe" ? iframeSnippet : jsSnippet;
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedEmbed(kind);
+      setTimeout(() => setCopiedEmbed(""), 1500);
+    } catch {
+      setCopiedEmbed("");
     }
   }
 
@@ -127,6 +148,26 @@ export default function AppointmentForm() {
               <Link to={previewHref} target="_blank">
                 <Button className="gap-1 mt-2"><ExternalLink size={16} /> Open booking flow</Button>
               </Link>
+              {at.share_link && (
+                <div className="mt-4 space-y-3 rounded-lg border border-outline-variant bg-surface-container-lowest p-3">
+                  <p className="text-sm font-semibold text-on-surface">Embed widget</p>
+                  <p className="text-xs text-on-surface-variant">Paste one of these snippets into your website to embed the booking flow.</p>
+                  <div>
+                    <div className="mb-1 flex items-center justify-between">
+                      <p className="text-xs font-semibold uppercase text-on-surface-variant">Iframe snippet</p>
+                      <Button variant="ghost" className="h-7 px-2 text-xs" onClick={() => copyEmbed("iframe")}>{copiedEmbed === "iframe" ? "Copied" : "Copy"}</Button>
+                    </div>
+                    <textarea readOnly value={iframeSnippet} className="h-20 w-full rounded-lg border border-outline-variant bg-surface-container-low p-2 text-xs text-on-surface-variant" />
+                  </div>
+                  <div>
+                    <div className="mb-1 flex items-center justify-between">
+                      <p className="text-xs font-semibold uppercase text-on-surface-variant">JS snippet</p>
+                      <Button variant="ghost" className="h-7 px-2 text-xs" onClick={() => copyEmbed("js")}>{copiedEmbed === "js" ? "Copied" : "Copy"}</Button>
+                    </div>
+                    <textarea readOnly value={jsSnippet} className="h-24 w-full rounded-lg border border-outline-variant bg-surface-container-low p-2 text-xs text-on-surface-variant" />
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
