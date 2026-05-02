@@ -7,6 +7,7 @@ from sqlalchemy import select
 from app.deps import CurrentUser, DBSession, require_roles
 from app.models.user import User
 from app.schemas.auth import UserPublic
+from app.services.email_service import send_email
 router = APIRouter(prefix="/users", tags=["users"])
 
 
@@ -68,6 +69,12 @@ class AdminUserPatch(BaseModel):
         if v not in ("customer", "organiser", "admin"):
             raise ValueError("Invalid role")
         return v
+
+
+class AdminTestEmailIn(BaseModel):
+    to_email: EmailStr | None = None
+    subject: str | None = Field(default="Neubook test email", max_length=255)
+    message: str | None = Field(default="This is a test email from Neubook Admin.", max_length=4000)
 
 
 @router.patch("/me", response_model=UserPublic)
@@ -141,3 +148,19 @@ def admin_patch_user(
     db.commit()
     db.refresh(u)
     return UserPublic.model_validate(u)
+
+
+@router.post("/admin/test-email")
+def admin_test_email(
+    data: AdminTestEmailIn,
+    user: Annotated[User, Depends(require_roles("admin"))],
+):
+    to_email = data.to_email or user.email
+    ok = send_email(
+        to_email,
+        data.subject or "Neubook test email",
+        (data.message or "This is a test email from Neubook Admin.") + f"\n\nTriggered by: {user.email}",
+    )
+    if not ok:
+        raise HTTPException(status_code=503, detail="Test email failed. Check SMTP config/logs.")
+    return {"ok": True, "to_email": to_email}

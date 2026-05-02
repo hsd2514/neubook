@@ -10,6 +10,8 @@ export default function AdminDashboard() {
   const { user } = useAuth();
   const [s, setS] = useState(null);
   const [insights, setInsights] = useState(null);
+  const [mailBusy, setMailBusy] = useState(false);
+  const [mailMsg, setMailMsg] = useState("");
   useEffect(() => {
     api("/api/reports/admin-summary").then(setS).catch(() => setS(null));
     api("/api/reports/admin-insights").then(setInsights).catch(() => setInsights(null));
@@ -23,6 +25,19 @@ export default function AdminDashboard() {
   const maxTrend = Math.max(1, ...(insights?.bookings_last_7_days || []).map((d) => d.count));
   const status = insights?.status_breakdown || { pending: 0, confirmed: 0, completed: 0, cancelled: 0 };
   const totalStatus = Math.max(1, status.pending + status.confirmed + status.completed + status.cancelled);
+
+  async function sendTestEmail() {
+    try {
+      setMailBusy(true);
+      setMailMsg("");
+      const out = await api("/api/users/admin/test-email", { method: "POST", body: {} });
+      setMailMsg(`Test email sent to ${out.to_email}`);
+    } catch (ex) {
+      setMailMsg(ex.message || "Failed to send test email");
+    } finally {
+      setMailBusy(false);
+    }
+  }
 
   return (
     <div>
@@ -123,6 +138,19 @@ export default function AdminDashboard() {
             <p className="text-sm text-on-surface-variant">No organiser activity yet.</p>
           )}
         </div>
+      </Card>
+
+      <Card className="mt-6">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-on-surface-variant">SMTP Test Trigger</h3>
+            <p className="text-sm text-on-surface-variant">Send a test email to your admin email anytime.</p>
+          </div>
+          <Button onClick={sendTestEmail} disabled={mailBusy}>
+            {mailBusy ? "Sending..." : "Send Test Email"}
+          </Button>
+        </div>
+        {mailMsg ? <p className="mt-3 text-sm text-on-surface-variant">{mailMsg}</p> : null}
       </Card>
     </div>
   );
