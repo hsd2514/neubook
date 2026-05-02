@@ -3,7 +3,7 @@
 from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.appointment_type import AppointmentType
@@ -194,3 +194,46 @@ def slot_exists_for_start(
         if delta % duration == timedelta(0):
             return True
     return False
+
+
+def auto_assign_resource(
+    db: Session,
+    appointment_type_id: int,
+    start_time: datetime,
+    capacity: int,
+) -> int:
+    """Pick a resource that can accept the requested booking window."""
+    at = db.get(AppointmentType, appointment_type_id)
+    if not at:
+        raise ValueError("Appointment type not found")
+
+    resources = list(
+        db.execute(
+            select(Resource).where(Resource.appointment_type_id == appointment_type_id)
+        ).scalars().all()
+    )
+    if not resources:
+        raise ValueError("No resources available")
+
+    end_time = start_time + timedelta(minutes=at.duration_minutes)
+    best_id: int | None = None
+    best_used: int | None = None
+    for res in resources:
+        used = db.execute(
+            select(func.coalesce(func.sum(Booking.capacity), 0)).where(
+                Booking.appointment_type_id == appointment_type_id,
+                Booking.resource_id == res.id,
+                Booking.status.in_(ACTIVE_SLOT_STATUSES),
+                Booking.start_time < end_time,
+                Booking.end_time > start_time,
+            )
+        ).scalar_one()
+        used = int(used)
+        avail = at.max_bookings_per_slot - used
+        if avail >= capacity and (best_used is None or used < best_used):
+            best_id = res.id
+            best_used = used
+
+    if best_id is None:
+        raise ValueError("No resource available for the requested slot")
+    return best_id

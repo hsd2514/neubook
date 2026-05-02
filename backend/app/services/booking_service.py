@@ -7,7 +7,7 @@ from app.models.appointment_type import AppointmentType
 from app.models.booking import Booking
 from app.models.question import Question
 from app.models.resource import Resource
-from app.services.availability import slot_exists_for_start
+from app.services.availability import auto_assign_resource, slot_exists_for_start
 from app.services.booking_status import ACTIVE_SLOT_STATUSES, CANCELLED, COMPLETED, CONFIRMED, PENDING
 from app.services.slot_lock import slot_lock
 
@@ -73,9 +73,13 @@ def create_booking(
         raise ValueError("Appointment not available")
     if capacity < 1:
         raise ValueError("capacity must be at least 1")
+    start_time = _normalize_utc(start_time)
 
     if at.appointment_kind == "resource" and resource_id is None:
-        raise ValueError("Resource required")
+        if at.assignment_mode == "auto":
+            resource_id = auto_assign_resource(db, appointment_type_id, start_time, capacity)
+        else:
+            raise ValueError("Resource required")
     if at.appointment_kind != "resource" and resource_id is not None:
         raise ValueError("Resource is not allowed for this appointment type")
 
@@ -87,7 +91,6 @@ def create_booking(
         raise ValueError("Payment required before booking confirmation")
     _validate_required_questions(db, appointment_type_id, answers)
 
-    start_time = _normalize_utc(start_time)
     with slot_lock(appointment_type_id, resource_id, start_time.isoformat()):
         if not slot_exists_for_start(db, appointment_type_id, resource_id, start_time, tz_name="UTC"):
             raise ValueError("Selected time is not available")

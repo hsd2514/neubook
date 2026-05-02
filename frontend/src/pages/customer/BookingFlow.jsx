@@ -15,6 +15,7 @@ import StepConfirm from "./booking/StepConfirm.jsx";
 import StepDone from "./booking/StepDone.jsx";
 
 const STEPS = ["Service", "Resource", "Date", "Slot", "Capacity", "Questions", "Payment", "Confirm"];
+const isAutoMode = (at) => at?.appointment_kind === "resource" && at?.assignment_mode === "auto";
 
 export default function BookingFlow() {
   const { id } = useParams();
@@ -48,7 +49,7 @@ export default function BookingFlow() {
 
   useEffect(() => {
     if (step !== 3 || !date || !at || !fromTo) return;
-    const rid = at.appointment_kind === "resource" ? resourceId : null;
+    const rid = at.appointment_kind === "resource" && !isAutoMode(at) ? resourceId : null;
     const params = new URLSearchParams({ from_date: fromTo.from, to_date: fromTo.to, tz: "UTC" });
     if (rid) params.set("resource_id", rid);
     api(`/api/appointments/${id}/availability?${params}`)
@@ -74,7 +75,7 @@ export default function BookingFlow() {
     try {
       const body = {
         appointment_type_id: Number(id),
-        resource_id: at.appointment_kind === "resource" ? resourceId : null,
+        resource_id: at.appointment_kind === "resource" && !isAutoMode(at) ? resourceId : null,
         start_time: slot.start,
         capacity: at.manage_capacity ? capacity : 1,
         answers: Object.keys(answers).length ? answers : null,
@@ -91,6 +92,7 @@ export default function BookingFlow() {
   if (user.role !== "customer" && user.role !== "admin") return <Card className="mx-auto max-w-md"><p>Booking is for customers. <Link to="/app" className="text-primary-container hover:underline">Console</Link></p></Card>;
 
   const activeSteps = STEPS.filter((s) => {
+    if (s === "Resource" && isAutoMode(at)) return false;
     if (s === "Capacity" && !at.manage_capacity) return false;
     if (s === "Payment" && !at.advance_payment) return false;
     return true;
@@ -131,9 +133,9 @@ export default function BookingFlow() {
         </div>
       )}
 
-      {step === 0 && <StepService at={at} onNext={() => setStep(1)} />}
-      {step === 1 && <StepResource at={at} resourceId={resourceId} setResourceId={setResourceId} onBack={() => setStep(0)} onNext={() => setStep(2)} />}
-      {step === 2 && <StepDate date={date} setDate={setDate} onBack={() => setStep(1)} onNext={() => setStep(3)} />}
+      {step === 0 && <StepService at={at} onNext={() => setStep(isAutoMode(at) ? 2 : 1)} />}
+      {step === 1 && !isAutoMode(at) && <StepResource at={at} resourceId={resourceId} setResourceId={setResourceId} onBack={() => setStep(0)} onNext={() => setStep(2)} />}
+      {step === 2 && <StepDate date={date} setDate={setDate} onBack={() => setStep(isAutoMode(at) ? 0 : 1)} onNext={() => setStep(3)} />}
       {step === 3 && <StepSlot availability={availability} err={err} onSelect={selectSlot} onBack={() => setStep(2)} />}
       {step === 4 && at.manage_capacity && (
         <StepCapacity
