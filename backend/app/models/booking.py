@@ -31,3 +31,4 @@ class Booking(Base):
     customer = relationship("User", back_populates="bookings", foreign_keys=[customer_id])
     appointment_type = relationship("AppointmentType", back_populates="bookings")
     resource = relationship("Resource", back_populates="bookings")
+    seat_links = relationship("BookingSeat", back_populates="booking", cascade="all, delete-orphan")

@@ -15,6 +15,62 @@ class ResourceOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class SeatBlockCreate(BaseModel):
+    name: str
+    seat_class: str = "standard"
+    color: str | None = None
+    price_override_paisa: int | None = Field(None, ge=0)
+    resource_id: int | None = None
+    x: int = 0
+    y: int = 0
+    width: int = 1
+    height: int = 1
+
+
+class SeatBlockOut(BaseModel):
+    id: int
+    appointment_type_id: int
+    resource_id: int | None
+    name: str
+    seat_class: str
+    color: str | None
+    price_override_paisa: int | None
+    x: int
+    y: int
+    width: int
+    height: int
+
+    model_config = {"from_attributes": True}
+
+
+class SeatCreate(BaseModel):
+    block_id: int
+    resource_id: int | None = None
+    label: str
+    row_label: str | None = None
+    col_number: int | None = None
+    seat_type: str = "normal"
+    status: str = "active"
+    x: int = 0
+    y: int = 0
+
+
+class SeatOut(BaseModel):
+    id: int
+    appointment_type_id: int
+    block_id: int
+    resource_id: int | None
+    label: str
+    row_label: str | None
+    col_number: int | None
+    seat_type: str
+    status: str
+    x: int
+    y: int
+
+    model_config = {"from_attributes": True}
+
+
 class BlockedSlotCreate(BaseModel):
     block_type: str = "one_off"
     resource_id: int | None = None
@@ -121,6 +177,7 @@ class AppointmentTypeCreate(BaseModel):
     advance_payment: bool = False
     manual_confirmation: bool = False
     assignment_mode: str = "manual"
+    booking_mode: str = "capacity"
     service_amount_paisa: int = Field(100, ge=100)
     max_bookings_per_slot: int = 1
 
@@ -128,6 +185,8 @@ class AppointmentTypeCreate(BaseModel):
     def validate_visibility(self):
         if self.visibility not in {"public", "unlisted", "private"}:
             raise ValueError("visibility must be public, unlisted, or private")
+        if self.booking_mode not in {"capacity", "seat_map"}:
+            raise ValueError("booking_mode must be capacity or seat_map")
         return self
 
 
@@ -143,6 +202,7 @@ class AppointmentTypeUpdate(BaseModel):
     advance_payment: bool | None = None
     manual_confirmation: bool | None = None
     assignment_mode: str | None = None
+    booking_mode: str | None = None
     service_amount_paisa: int | None = Field(None, ge=100)
     max_bookings_per_slot: int | None = None
 
@@ -150,6 +210,8 @@ class AppointmentTypeUpdate(BaseModel):
     def validate_visibility(self):
         if self.visibility is not None and self.visibility not in {"public", "unlisted", "private"}:
             raise ValueError("visibility must be public, unlisted, or private")
+        if self.booking_mode is not None and self.booking_mode not in {"capacity", "seat_map"}:
+            raise ValueError("booking_mode must be capacity or seat_map")
         return self
 
 
@@ -167,12 +229,15 @@ class AppointmentTypeOut(BaseModel):
     advance_payment: bool
     manual_confirmation: bool
     assignment_mode: str
+    booking_mode: str
     service_amount_paisa: int
     max_bookings_per_slot: int
     share_link: str | None
     resources: list[ResourceOut] = []
     schedules: list[ScheduleOut] = []
     blocked_slots: list[BlockedSlotOut] = []
+    seat_blocks: list[SeatBlockOut] = []
+    seats: list[SeatOut] = []
     questions: list[QuestionOut] = []
 
     model_config = {"from_attributes": True}

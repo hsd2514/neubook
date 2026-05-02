@@ -17,3 +17,5 @@ class Resource(Base):
     appointment_type = relationship("AppointmentType", back_populates="resources")
     schedules = relationship("Schedule", back_populates="resource")
     bookings = relationship("Booking", back_populates="resource")
+    seat_blocks = relationship("SeatBlock", back_populates="resource")
+    seats = relationship("Seat", back_populates="resource")

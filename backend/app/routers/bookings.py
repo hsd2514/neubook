@@ -36,7 +36,21 @@ logger = logging.getLogger(__name__)
 
 
 def _out(b: Booking) -> BookingOut:
-    return BookingOut.model_validate(b)
+    return BookingOut(
+        id=b.id,
+        customer_id=b.customer_id,
+        appointment_type_id=b.appointment_type_id,
+        resource_id=b.resource_id,
+        start_time=b.start_time,
+        end_time=b.end_time,
+        capacity=b.capacity,
+        status=b.status,
+        payment_status=b.payment_status,
+        payment_reference=b.payment_reference,
+        answers=b.answers,
+        seat_ids=[link.seat_id for link in (b.seat_links or [])],
+        created_at=b.created_at,
+    )
 
 
 @router.post("", response_model=BookingOut)
@@ -70,6 +84,7 @@ def create_booking_route(
             data.payment_confirmed,
             data.payment_reference,
             data.share_token,
+            data.seat_ids,
         )
     except ValueError as e:
         if idempotency_key is not None:
