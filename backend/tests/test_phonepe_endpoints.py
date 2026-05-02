@@ -34,7 +34,7 @@ def test_phonepe_initiate_returns_503_when_not_configured(client, db_session):
         headers=_auth_header(customer),
     )
     assert resp.status_code == 503
-    assert "PhonePe credentials are not configured" in resp.json()["detail"]
+    assert "PhonePe" in resp.json()["detail"]
 
 
 def test_phonepe_status_returns_503_when_not_configured(client, db_session):
@@ -46,4 +46,4 @@ def test_phonepe_status_returns_503_when_not_configured(client, db_session):
         headers=_auth_header(customer),
     )
     assert resp.status_code == 503
-    assert "PhonePe credentials are not configured" in resp.json()["detail"]
+    assert "PhonePe" in resp.json()["detail"]

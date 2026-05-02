@@ -3,6 +3,13 @@ import os
 # Force test DB before application modules load settings/engine.
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 os.environ["SECRET_KEY"] = "test-secret"
+os.environ["REDIS_URL"] = ""
+os.environ["UPSTASH_REDIS_URL"] = ""
+os.environ.pop("PHONEPE_CLIENT_ID", None)
+os.environ.pop("PHONEPE_CLIENT_SECRET", None)
+os.environ.pop("PHONEPE_CLIENT_VERSION", None)
+os.environ.pop("PHONEPE_CALLBACK_USERNAME", None)
+os.environ.pop("PHONEPE_CALLBACK_PASSWORD", None)
 
 import pytest
 from fastapi.testclient import TestClient

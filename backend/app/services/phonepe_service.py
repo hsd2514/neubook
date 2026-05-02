@@ -29,8 +29,13 @@ def _client():
     if not settings.phonepe_client_id or not settings.phonepe_client_secret or not settings.phonepe_client_version:
         raise PhonePeNotConfiguredError("PhonePe credentials are not configured")
 
-    from phonepe.sdk.pg.env import Env
-    from phonepe.sdk.pg.payments.v2.standard_checkout_client import StandardCheckoutClient
+    try:
+        from phonepe.sdk.pg.env import Env
+        from phonepe.sdk.pg.payments.v2.standard_checkout_client import StandardCheckoutClient
+    except ModuleNotFoundError as exc:
+        raise PhonePeNotConfiguredError(
+            "PhonePe SDK runtime dependency missing. Run dependency sync (setuptools required)."
+        ) from exc
 
     env_value = (settings.phonepe_env or "SANDBOX").upper()
     env = Env.PRODUCTION if env_value == "PRODUCTION" else Env.SANDBOX
