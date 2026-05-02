@@ -12,6 +12,7 @@ from app.schemas.auth import (
     VerifyOtpRequest,
 )
 from app.services import auth_service
+from app.services.email_service import is_email_configured
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -22,7 +23,7 @@ def signup(data: SignupRequest, db: DBSession):
         auth_service.signup_request(db, data)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    return MessageResponse(message="Verification code sent. Check server logs in development.")
+    return MessageResponse(message="Verification code sent. Check your email.")
 
 
 @router.post("/verify-otp", response_model=TokenPair)
@@ -56,7 +57,7 @@ def refresh(data: RefreshRequest, db: DBSession):
 def forgot_password(data: ForgotPasswordRequest, db: DBSession):
     token = auth_service.forgot_password(db, data.email)
     msg = "If the email exists, reset instructions were sent."
-    if token:
+    if token and not is_email_configured():
         msg += " (dev: token printed to server console)"
     return MessageResponse(message=msg)
 
