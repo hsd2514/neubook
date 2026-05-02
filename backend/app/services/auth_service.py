@@ -48,7 +48,7 @@ def signup_request(db: Session, data: SignupRequest) -> None:
     )
     db.commit()
     # Dev: OTP logged; in production send email
-    print(f"[Vitodoo] OTP for {data.email}: {code}")
+    print(f"[Neubook] OTP for {data.email}: {code}")
 
 
 def verify_otp_and_activate(db: Session, email: str, code: str):
@@ -107,7 +107,7 @@ def forgot_password(db: Session, email: str) -> str | None:
     expires = datetime.now(timezone.utc) + timedelta(hours=1)
     db.add(PasswordResetToken(user_id=user.id, token=token, expires_at=expires, consumed=False))
     db.commit()
-    print(f"[Vitodoo] Password reset token for {email}: {token}")
+    print(f"[Neubook] Password reset token for {email}: {token}")
     return token
 
 

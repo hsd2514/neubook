@@ -1,7 +1,7 @@
 [project]
-name = "vitodoo-backend"
+name = "neubook-backend"
 version = "0.1.0"
-description = "Vitodoo appointment booking API"
+description = "Neubook appointment booking API"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

@@ -28,7 +28,7 @@ export default function Home() {
       <div className="mb-8 rounded-xl bg-gradient-to-br from-primary-container to-primary p-6 text-white shadow-elevated sm:p-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Vitodoo</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Neubook</h1>
             <p className="mt-1 text-white/80">The perfect booking system. Choose a service and pick a time.</p>
           </div>
           <div className="flex gap-2">

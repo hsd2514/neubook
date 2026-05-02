@@ -10,7 +10,7 @@ export function CustomerNav() {
       <div className="mx-auto flex h-12 max-w-5xl items-center justify-between px-4">
         <Link to="/" className="flex items-center gap-2">
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-primary-container to-primary text-xs font-bold text-white">V</div>
-          <span className="text-sm font-bold text-on-surface">Vitodoo</span>
+          <span className="text-sm font-bold text-on-surface">Neubook</span>
         </Link>
         <div className="flex items-center gap-2">
           {user ? (

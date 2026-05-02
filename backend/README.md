@@ -1,4 +1,4 @@
-# Vitodoo Backend
+# Neubook Backend
 
 FastAPI + SQLAlchemy + Alembic + PostgreSQL.
 

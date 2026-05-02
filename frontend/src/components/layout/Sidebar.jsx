@@ -37,7 +37,7 @@ export function Sidebar({ role, mobileOpen, onNavigate }) {
       <div className="flex h-14 items-center justify-between border-b border-white/10 px-4">
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-sm font-bold">V</div>
-          <span className="text-lg font-bold tracking-tight">Vitodoo</span>
+          <span className="text-lg font-bold tracking-tight">Neubook</span>
         </div>
         <button type="button" onClick={onNavigate} className="rounded p-1 text-white/60 hover:bg-white/10 hover:text-white lg:hidden">
           <X size={18} />

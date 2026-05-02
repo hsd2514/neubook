@@ -43,7 +43,7 @@ export default function Login() {
         <div className="mb-6 text-center">
           <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-primary-container to-primary text-lg font-bold text-white shadow-card">V</div>
           <h1 className="text-2xl font-bold text-on-surface">Welcome back</h1>
-          <p className="mt-1 text-sm text-on-surface-variant">Sign in to Vitodoo</p>
+          <p className="mt-1 text-sm text-on-surface-variant">Sign in to Neubook</p>
         </div>
         <form onSubmit={onSubmit} className="space-y-4">
           <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />

@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.routers import appointments, auth, bookings, reports, users
 
-app = FastAPI(title="Vitodoo API", version="0.1.0")
+app = FastAPI(title="Neubook API", version="0.1.0")
 
 origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
 app.add_middleware(

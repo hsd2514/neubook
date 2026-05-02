@@ -1,4 +1,4 @@
-# Vitodoo
+# Neubook
 
 Appointment booking platform: **React + Vite + Tailwind** frontend (Odoo-style UI), **FastAPI + SQLAlchemy + Alembic + PostgreSQL** backend, **`uv`** for Python.
 
