@@ -13,6 +13,12 @@ class Settings(BaseSettings):
     redis_url: str | None = None
     upstash_redis_url: str | None = Field(default=None, alias="UPSTASH_REDIS_URL")
     slot_lock_ttl_seconds: int = 10
+    phonepe_client_id: str | None = None
+    phonepe_client_secret: str | None = None
+    phonepe_client_version: int | None = None
+    phonepe_env: str = "SANDBOX"
+    phonepe_callback_username: str | None = None
+    phonepe_callback_password: str | None = None
 
     @property
     def lock_redis_url(self) -> str | None:
