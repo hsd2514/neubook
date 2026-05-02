@@ -64,6 +64,7 @@ export default function AppointmentForm() {
   }, [shareBookingUrl]);
   if (!isNew && loading) return <p className="p-8 text-on-surface-variant">Loading…</p>;
   if (!isNew && notFound) return <p className="p-8 text-error">Appointment not found or inaccessible.</p>;
+  if (!isNew && !at) return <p className="p-8 text-on-surface-variant">Loading…</p>;
 
   async function togglePublish() {
     setForm((f) => ({ ...f, is_published: !f.is_published }));
@@ -116,7 +117,7 @@ export default function AppointmentForm() {
             <ArrowLeft size={20} />
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-on-surface">{isNew ? "New appointment type" : at.name}</h1>
+            <h1 className="text-2xl font-bold text-on-surface">{isNew ? "New appointment type" : (at?.name || "Appointment")}</h1>
             {!isNew && (
               <div className="flex items-center gap-2 mt-0.5">
                 <Badge tone={form.is_published ? "success" : "default"}>{form.is_published ? "Published" : "Draft"}</Badge>
