@@ -1,6 +1,7 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
 
 from app.deps import CurrentUser, DBSession, require_roles
@@ -9,6 +10,12 @@ from app.models.booking import Booking
 from app.models.user import User
 from app.schemas.booking import BookingCreate, BookingOut, BookingReschedule
 from app.services import booking_service
+from app.services.idempotency import (
+    ENDPOINT_BOOKING_CREATE,
+    cleanup_expired,
+    find_record,
+    store_record,
+)
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
 
@@ -18,9 +25,24 @@ def _out(b: Booking) -> BookingOut:
 
 
 @router.post("", response_model=BookingOut)
-def create_booking_route(data: BookingCreate, db: DBSession, user: CurrentUser):
+def create_booking_route(
+    data: BookingCreate,
+    db: DBSession,
+    user: CurrentUser,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+):
     if user.role not in ("customer", "admin"):
         raise HTTPException(status_code=403, detail="Customers only")
+
+    if idempotency_key is not None:
+        cleanup_expired(db)
+        existing = find_record(db, idempotency_key, user.id, ENDPOINT_BOOKING_CREATE)
+        if existing:
+            return JSONResponse(
+                status_code=existing.status_code,
+                content=existing.response_body,
+            )
+
     try:
         b = booking_service.create_booking(
             db,
@@ -34,8 +56,20 @@ def create_booking_route(data: BookingCreate, db: DBSession, user: CurrentUser):
             data.payment_reference,
         )
     except ValueError as e:
+        if idempotency_key is not None:
+            store_record(
+                db, idempotency_key, user.id, ENDPOINT_BOOKING_CREATE,
+                400, {"detail": str(e)},
+            )
         raise HTTPException(status_code=400, detail=str(e))
-    return _out(b)
+
+    result = _out(b)
+    if idempotency_key is not None:
+        store_record(
+            db, idempotency_key, user.id, ENDPOINT_BOOKING_CREATE,
+            200, result.model_dump(mode="json"), booking_id=b.id,
+        )
+    return result
 
 
 @router.get("/mine", response_model=list[BookingOut])

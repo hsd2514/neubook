@@ -5,6 +5,7 @@ from app.models.schedule import Schedule
 from app.models.question import Question
 from app.models.booking import Booking
 from app.models.auth_tokens import EmailOTP, PasswordResetToken
+from app.models.idempotency import IdempotencyRecord
 
 __all__ = [
     "User",
@@ -15,4 +16,5 @@ __all__ = [
     "Booking",
     "EmailOTP",
     "PasswordResetToken",
+    "IdempotencyRecord",
 ]
