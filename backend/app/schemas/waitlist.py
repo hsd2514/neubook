@@ -16,7 +16,9 @@ class WaitlistEntryOut(BaseModel):
     id: int
     customer_id: int
     appointment_type_id: int
+    appointment_type_name: Optional[str] = None
     resource_id: Optional[int]
+    resource_name: Optional[str] = None
     start_time: datetime
     seat_ids: Optional[list[int]]
     answers: Optional[dict | list]

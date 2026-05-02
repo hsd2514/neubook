@@ -21,10 +21,16 @@ export default function BookingList({ title, bookings, showActions, onCancel, on
                 <Calendar size={18} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-on-surface">
+                <p className="text-sm font-semibold text-on-surface">
+                  {b.appointment_type_name || "Appointment"}
+                </p>
+                <p className="text-xs text-on-surface-variant">
                   {start.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} at {start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                 </p>
-                <div className="mt-0.5 flex items-center gap-2">
+                {b.resource_name && (
+                  <p className="text-xs text-on-surface-variant">{b.resource_name}</p>
+                )}
+                <div className="mt-1 flex items-center gap-2">
                   <Badge tone={toneMap[b.status]}>{b.status}</Badge>
                   <span className="text-xs text-on-surface-variant">Seats: {b.capacity}</span>
                 </div>

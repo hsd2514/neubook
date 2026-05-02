@@ -2,6 +2,7 @@ from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.deps import CurrentUser, DBSession, require_roles
 from app.models.user import User
@@ -18,7 +19,9 @@ def _out(e: WaitlistEntry) -> WaitlistEntryOut:
         id=e.id,
         customer_id=e.customer_id,
         appointment_type_id=e.appointment_type_id,
+        appointment_type_name=e.appointment_type.name if e.appointment_type else None,
         resource_id=e.resource_id,
+        resource_name=e.resource.name if getattr(e, "resource", None) else None,
         start_time=e.start_time,
         seat_ids=e.seat_ids,
         answers=e.answers,
@@ -61,6 +64,10 @@ def my_waitlist(db: DBSession, user: CurrentUser):
                 WaitlistEntry.status == "waiting",
             )
             .order_by(WaitlistEntry.created_at.desc())
+            .options(
+                selectinload(WaitlistEntry.appointment_type),
+                selectinload(WaitlistEntry.resource),
+            )
         )
         .scalars()
         .all()

@@ -27,7 +27,13 @@ function WaitlistSection({ waitlistEntries, onLeave }) {
               className="flex items-center justify-between rounded-lg border border-[#f59e0b]/30 bg-[#fef3c7] p-4"
             >
               <div>
-                <div className="flex items-center gap-2">
+                <p className="text-sm font-semibold text-on-surface">
+                  {e.appointment_type_name || "Waitlist"}
+                </p>
+                {e.resource_name && (
+                  <p className="text-xs text-on-surface-variant">{e.resource_name}</p>
+                )}
+                <div className="flex items-center gap-2 mt-1">
                   <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#f59e0b] text-xs font-bold text-white">
                     {e.position}
                   </span>
