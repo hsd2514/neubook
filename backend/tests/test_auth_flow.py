@@ -1,6 +1,7 @@
 from sqlalchemy import select
 
 from app.models.auth_tokens import EmailOTP
+from app.services import auth_service
 from app.models.user import User
 from app.utils.jwt import create_access_token
 from app.utils.password import hash_password
@@ -40,3 +41,30 @@ def test_admin_me(client, db_session):
     r = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 200
     assert r.json()["role"] == "admin"
+
+
+def test_forgot_password_triggers_email_send(client, db_session, monkeypatch):
+    user = User(
+        full_name="Reset User",
+        email="reset@example.com",
+        password_hash=hash_password("password123"),
+        role="customer",
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+
+    sent = {"calls": 0}
+
+    def fake_send_email(to_email: str, subject: str, text_body: str):
+        sent["calls"] += 1
+        assert to_email == "reset@example.com"
+        assert "Reset your Neubook password" in subject
+        assert "Reset link:" in text_body
+        return True
+
+    monkeypatch.setattr(auth_service, "send_email", fake_send_email)
+
+    r = client.post("/api/auth/forgot-password", json={"email": "reset@example.com"})
+    assert r.status_code == 200
+    assert sent["calls"] == 1

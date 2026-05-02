@@ -7,8 +7,10 @@ from app.models.appointment_type import AppointmentType
 from app.models.booking import Booking
 from app.models.question import Question
 from app.models.resource import Resource
+from app.models.user import User
 from app.services.availability import auto_assign_resource, slot_exists_for_start
 from app.services.booking_status import ACTIVE_SLOT_STATUSES, CANCELLED, COMPLETED, CONFIRMED, PENDING
+from app.services.email_service import send_email
 from app.services.slot_lock import slot_lock
 
 
@@ -49,12 +51,39 @@ def _validate_required_questions(db: Session, appointment_type_id: int, answers:
 
     missing_labels: list[str] = []
     for q in required_questions:
-        # FE serializes keys as strings; support int and str keys.
         raw = answers.get(q.id, answers.get(str(q.id)))
         if _required_answer_missing(q, raw):
             missing_labels.append(q.label)
     if missing_labels:
         raise ValueError("Missing required answers: " + ", ".join(missing_labels))
+
+
+def _send_booking_email(
+    db: Session,
+    booking: Booking,
+    appointment_type: AppointmentType,
+    subject: str,
+    customer_line: str,
+    organiser_line: str,
+) -> None:
+    customer = db.get(User, booking.customer_id)
+    organiser = db.get(User, appointment_type.organiser_id)
+    when = booking.start_time.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    service_name = appointment_type.name
+    base = f"Service: {service_name}\nWhen: {when}\nBooking ID: {booking.id}\n"
+
+    if customer:
+        send_email(
+            customer.email,
+            subject,
+            f"Hi {customer.full_name},\n\n{customer_line}\n\n{base}",
+        )
+    if organiser:
+        send_email(
+            organiser.email,
+            subject,
+            f"Hi {organiser.full_name},\n\n{organiser_line}\n\n{base}",
+        )
 
 
 def create_booking(
@@ -67,9 +96,15 @@ def create_booking(
     answers: dict | list | None,
     payment_confirmed: bool = False,
     payment_reference: str | None = None,
+    share_token: str | None = None,
 ) -> Booking:
     at = db.get(AppointmentType, appointment_type_id)
-    if not at or not at.is_published:
+    if not at:
+        raise ValueError("Appointment not available")
+    if not at.is_published:
+        if not share_token or at.share_link != share_token:
+            raise ValueError("Appointment not available")
+    elif at.visibility == "private":
         raise ValueError("Appointment not available")
     if capacity < 1:
         raise ValueError("capacity must be at least 1")
@@ -134,6 +169,14 @@ def create_booking(
         db.add(booking)
         db.commit()
         db.refresh(booking)
+        _send_booking_email(
+            db,
+            booking,
+            at,
+            "Booking created",
+            "Your booking has been created successfully.",
+            "A new booking has been created for your appointment type.",
+        )
         return booking
 
 
@@ -156,6 +199,16 @@ def cancel_booking(db: Session, booking_id: int, user_id: int, role: str) -> Boo
     b.status = CANCELLED
     db.commit()
     db.refresh(b)
+    at = db.get(AppointmentType, b.appointment_type_id)
+    if at:
+        _send_booking_email(
+            db,
+            b,
+            at,
+            "Booking cancelled",
+            "Your booking has been cancelled.",
+            "A booking has been cancelled.",
+        )
     return b
 
 
@@ -205,6 +258,14 @@ def reschedule_booking(db: Session, booking_id: int, user_id: int, new_start: da
             b.status = PENDING
         db.commit()
         db.refresh(b)
+        _send_booking_email(
+            db,
+            b,
+            at,
+            "Booking rescheduled",
+            "Your booking was rescheduled successfully.",
+            "A booking was rescheduled.",
+        )
         return b
 
 
@@ -222,6 +283,14 @@ def organiser_confirm(db: Session, booking_id: int, organiser_id: int, role: str
     b.status = CONFIRMED
     db.commit()
     db.refresh(b)
+    _send_booking_email(
+        db,
+        b,
+        at,
+        "Booking confirmed",
+        "Your booking has been confirmed.",
+        "You confirmed a booking.",
+    )
     return b
 
 
@@ -239,4 +308,12 @@ def mark_completed(db: Session, booking_id: int, user_id: int, role: str) -> Boo
     b.status = COMPLETED
     db.commit()
     db.refresh(b)
+    _send_booking_email(
+        db,
+        b,
+        at,
+        "Booking completed",
+        "Your booking has been marked as completed.",
+        "You marked a booking as completed.",
+    )
     return b

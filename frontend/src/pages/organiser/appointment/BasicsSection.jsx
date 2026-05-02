@@ -26,6 +26,7 @@ export default function BasicsSection({ form, setForm }) {
         />
       </div>
       <Input label="Duration (minutes)" type="number" min={5} value={form.duration_minutes} onChange={set("duration_minutes")} />
+      <Input label="Service amount (paise)" type="number" min={100} step={1} value={form.service_amount_paisa} onChange={set("service_amount_paisa")} />
       <Select label="Appointment kind" value={form.appointment_kind} onChange={set("appointment_kind")}>
         <option value="resource">Resource</option>
         <option value="user">User</option>
@@ -33,6 +34,11 @@ export default function BasicsSection({ form, setForm }) {
       <Select label="Slot schedule" value={form.slot_schedule} onChange={set("slot_schedule")}>
         <option value="weekly">Weekly</option>
         <option value="flexible">Flexible</option>
+      </Select>
+      <Select label="Visibility" value={form.visibility} onChange={set("visibility")}>
+        <option value="public">Public</option>
+        <option value="unlisted">Unlisted</option>
+        <option value="private">Private</option>
       </Select>
       <Select label="Assignment" value={form.assignment_mode} onChange={set("assignment_mode")}>
         <option value="manual">Manual</option>

@@ -79,12 +79,20 @@ class AppointmentTypeCreate(BaseModel):
     duration_minutes: int = 30
     appointment_kind: str = "resource"
     slot_schedule: str = "weekly"
+    visibility: str = "public"
     is_published: bool = False
     manage_capacity: bool = False
     advance_payment: bool = False
     manual_confirmation: bool = False
     assignment_mode: str = "manual"
+    service_amount_paisa: int = Field(100, ge=100)
     max_bookings_per_slot: int = 1
+
+    @model_validator(mode="after")
+    def validate_visibility(self):
+        if self.visibility not in {"public", "unlisted", "private"}:
+            raise ValueError("visibility must be public, unlisted, or private")
+        return self
 
 
 class AppointmentTypeUpdate(BaseModel):
@@ -93,12 +101,20 @@ class AppointmentTypeUpdate(BaseModel):
     duration_minutes: int | None = None
     appointment_kind: str | None = None
     slot_schedule: str | None = None
+    visibility: str | None = None
     is_published: bool | None = None
     manage_capacity: bool | None = None
     advance_payment: bool | None = None
     manual_confirmation: bool | None = None
     assignment_mode: str | None = None
+    service_amount_paisa: int | None = Field(None, ge=100)
     max_bookings_per_slot: int | None = None
+
+    @model_validator(mode="after")
+    def validate_visibility(self):
+        if self.visibility is not None and self.visibility not in {"public", "unlisted", "private"}:
+            raise ValueError("visibility must be public, unlisted, or private")
+        return self
 
 
 class AppointmentTypeOut(BaseModel):
@@ -109,11 +125,13 @@ class AppointmentTypeOut(BaseModel):
     duration_minutes: int
     appointment_kind: str
     slot_schedule: str
+    visibility: str
     is_published: bool
     manage_capacity: bool
     advance_payment: bool
     manual_confirmation: bool
     assignment_mode: str
+    service_amount_paisa: int
     max_bookings_per_slot: int
     share_link: str | None
     resources: list[ResourceOut] = []

@@ -1,4 +1,5 @@
 from typing import Annotated
+import logging
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import JSONResponse
@@ -9,6 +10,13 @@ from app.models.appointment_type import AppointmentType
 from app.models.booking import Booking
 from app.models.user import User
 from app.schemas.booking import BookingCreate, BookingOut, BookingReschedule
+from app.schemas.booking import (
+    PhonePeCallbackValidateIn,
+    PhonePePaymentInitiateIn,
+    PhonePePaymentInitiateOut,
+    PhonePePaymentStatusIn,
+    PhonePePaymentStatusOut,
+)
 from app.services import booking_service
 from app.services.idempotency import (
     ENDPOINT_BOOKING_CREATE,
@@ -16,8 +24,15 @@ from app.services.idempotency import (
     find_record,
     store_record,
 )
+from app.services.phonepe_service import (
+    PhonePeNotConfiguredError,
+    fetch_order_status,
+    initiate_payment,
+    validate_callback,
+)
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
+logger = logging.getLogger(__name__)
 
 
 def _out(b: Booking) -> BookingOut:
@@ -54,6 +69,7 @@ def create_booking_route(
             data.answers,
             data.payment_confirmed,
             data.payment_reference,
+            data.share_token,
         )
     except ValueError as e:
         if idempotency_key is not None:
@@ -144,3 +160,69 @@ def complete(
     return _out(b)
 
 
+@router.post("/payments/phonepe/initiate", response_model=PhonePePaymentInitiateOut)
+def phonepe_initiate(
+    data: PhonePePaymentInitiateIn,
+    user: Annotated[User, Depends(require_roles("customer", "admin"))],
+):
+    _ = user
+    try:
+        result = initiate_payment(
+            amount_paisa=data.amount_paisa,
+            redirect_url=data.redirect_url,
+            merchant_order_id=data.merchant_order_id,
+        )
+        return PhonePePaymentInitiateOut(
+            merchant_order_id=result.merchant_order_id,
+            state=result.state,
+            redirect_url=result.redirect_url,
+            order_id=result.order_id,
+            expire_at=result.expire_at,
+        )
+    except PhonePeNotConfiguredError as e:
+        logger.exception("PhonePe initiate failed: configuration/runtime issue")
+        raise HTTPException(status_code=503, detail=str(e))
+    except ValueError as e:
+        logger.warning("PhonePe initiate rejected: %s", e)
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/payments/phonepe/status", response_model=PhonePePaymentStatusOut)
+def phonepe_status(
+    data: PhonePePaymentStatusIn,
+    user: Annotated[User, Depends(require_roles("customer", "admin"))],
+):
+    _ = user
+    try:
+        result = fetch_order_status(data.merchant_order_id)
+        return PhonePePaymentStatusOut(
+            state=result.state,
+            amount=result.amount,
+            merchant_order_id=result.merchant_order_id,
+            raw=result.raw,
+        )
+    except PhonePeNotConfiguredError as e:
+        logger.exception("PhonePe status failed: configuration/runtime issue")
+        raise HTTPException(status_code=503, detail=str(e))
+    except ValueError as e:
+        logger.warning("PhonePe status rejected: %s", e)
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/payments/phonepe/validate-callback")
+def phonepe_validate_callback(
+    data: PhonePeCallbackValidateIn,
+    user: Annotated[User, Depends(require_roles("admin"))],
+):
+    _ = user
+    try:
+        return validate_callback(
+            authorization_header_data=data.authorization_header,
+            callback_response_data=data.callback_body,
+        )
+    except PhonePeNotConfiguredError as e:
+        logger.exception("PhonePe callback validation failed: configuration/runtime issue")
+        raise HTTPException(status_code=503, detail=str(e))
+    except ValueError as e:
+        logger.warning("PhonePe callback validation rejected: %s", e)
+        raise HTTPException(status_code=400, detail=str(e))
