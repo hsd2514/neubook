@@ -22,8 +22,8 @@ This file tracks planned work from chat and current delivery status.
 
 ## P2 (Growth + distribution + business value)
 
-- [ ] Embeddable booking widget (iframe/JS snippet)
-- [ ] White-label booking page (logo/colors/domain)
+- [ ] [#24](https://github.com/hsd2514/neubook/issues/24) Embeddable booking widget (iframe/JS snippet) - assignee: `Aryan0550p`
+- [ ] [#25](https://github.com/hsd2514/neubook/issues/25) White-label booking page (logo/colors/domain) - assignee: `kdt523`
 - [x] Assignment mode auto/manual fully implemented
 - [x] Flexible schedule mode fully implemented (not just weekly schema)
 
