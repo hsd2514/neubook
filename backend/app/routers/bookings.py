@@ -4,9 +4,6 @@ import logging
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.colors import HexColor, white, black
-from reportlab.pdfgen import canvas
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
@@ -138,6 +135,16 @@ def my_bookings(db: DBSession, user: CurrentUser):
 
 @router.get("/{booking_id}/receipt.pdf")
 def download_booking_receipt(booking_id: int, db: DBSession, user: CurrentUser):
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.colors import HexColor, white, black
+        from reportlab.pdfgen import canvas
+    except ImportError:
+        raise HTTPException(
+            status_code=503,
+            detail="Receipt generation dependency missing. Install backend dependencies (reportlab).",
+        )
+
     booking = (
         db.execute(
             select(Booking)
