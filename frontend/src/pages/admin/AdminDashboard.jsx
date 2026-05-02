@@ -26,12 +26,12 @@ export default function AdminDashboard() {
   const status = insights?.status_breakdown || { pending: 0, confirmed: 0, completed: 0, cancelled: 0 };
   const totalStatus = Math.max(1, status.pending + status.confirmed + status.completed + status.cancelled);
 
-  async function sendTestEmail() {
+  async function sendTestEmail(template = "generic") {
     try {
       setMailBusy(true);
       setMailMsg("");
-      const out = await api("/api/users/admin/test-email", { method: "POST", body: {} });
-      setMailMsg(`Test email sent to ${out.to_email}`);
+      const out = await api("/api/users/admin/test-email", { method: "POST", body: { template } });
+      setMailMsg(`Test "${out.template}" email sent to ${out.to_email}`);
     } catch (ex) {
       setMailMsg(ex.message || "Failed to send test email");
     } finally {
@@ -144,11 +144,16 @@ export default function AdminDashboard() {
         <div className="flex items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-semibold uppercase tracking-wide text-on-surface-variant">SMTP Test Trigger</h3>
-            <p className="text-sm text-on-surface-variant">Send a test email to your admin email anytime.</p>
+            <p className="text-sm text-on-surface-variant">Send test emails for all major trigger types.</p>
           </div>
-          <Button onClick={sendTestEmail} disabled={mailBusy}>
-            {mailBusy ? "Sending..." : "Send Test Email"}
-          </Button>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button onClick={() => sendTestEmail("generic")} disabled={mailBusy}>{mailBusy ? "Sending..." : "Generic"}</Button>
+          <Button variant="secondary" onClick={() => sendTestEmail("booking_created")} disabled={mailBusy}>Booking Created</Button>
+          <Button variant="secondary" onClick={() => sendTestEmail("booking_confirmed")} disabled={mailBusy}>Booking Confirmed</Button>
+          <Button variant="secondary" onClick={() => sendTestEmail("booking_cancelled")} disabled={mailBusy}>Booking Cancelled</Button>
+          <Button variant="secondary" onClick={() => sendTestEmail("waitlist_joined")} disabled={mailBusy}>Waitlist Joined</Button>
+          <Button variant="secondary" onClick={() => sendTestEmail("password_reset")} disabled={mailBusy}>Password Reset</Button>
         </div>
         {mailMsg ? <p className="mt-3 text-sm text-on-surface-variant">{mailMsg}</p> : null}
       </Card>

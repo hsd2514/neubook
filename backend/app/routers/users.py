@@ -8,7 +8,12 @@ from app.deps import CurrentUser, DBSession, require_roles
 from app.config import settings
 from app.models.user import User
 from app.schemas.auth import UserPublic
-from app.services.email_service import send_email
+from app.services.email_service import send_email_ex
+from app.services.email_templates import (
+    booking_customer_email,
+    reset_password_email,
+    waitlist_joined_email,
+)
 router = APIRouter(prefix="/users", tags=["users"])
 
 
@@ -74,6 +79,7 @@ class AdminUserPatch(BaseModel):
 
 class AdminTestEmailIn(BaseModel):
     to_email: EmailStr | None = None
+    template: str | None = Field(default="generic", max_length=64)
     subject: str | None = Field(default="Neubook test email", max_length=255)
     message: str | None = Field(default="This is a test email from Neubook Admin.", max_length=4000)
 
@@ -157,11 +163,47 @@ def admin_test_email(
     user: Annotated[User, Depends(require_roles("admin"))],
 ):
     to_email = data.to_email or settings.smtp_test_default_to or user.email
-    ok = send_email(
-        to_email,
-        data.subject or "Neubook test email",
-        (data.message or "This is a test email from Neubook Admin.") + f"\n\nTriggered by: {user.email}",
-    )
+    template = (data.template or "generic").strip().lower()
+    when = "2026-05-03 12:00 UTC"
+    if template == "booking_created":
+        subject, message = booking_customer_email(
+            customer_name=user.full_name,
+            service_name="Demo Service",
+            when_utc=when,
+            booking_id=9999,
+            subject="Booking created",
+            customer_line="Your booking has been created successfully.",
+        )
+    elif template == "booking_confirmed":
+        subject, message = booking_customer_email(
+            customer_name=user.full_name,
+            service_name="Demo Service",
+            when_utc=when,
+            booking_id=9999,
+            subject="Booking confirmed",
+            customer_line="Your booking has been confirmed.",
+        )
+    elif template == "booking_cancelled":
+        subject, message = booking_customer_email(
+            customer_name=user.full_name,
+            service_name="Demo Service",
+            when_utc=when,
+            booking_id=9999,
+            subject="Booking cancelled",
+            customer_line="Your booking has been cancelled.",
+        )
+    elif template == "waitlist_joined":
+        subject, message = waitlist_joined_email(user.full_name, 1, "Demo Service", when)
+    elif template == "password_reset":
+        subject, message = reset_password_email(user.full_name, "http://localhost:5173/forgot-password?token=demo-token")
+    else:
+        subject = "Neubook test email"
+        message = "This is a test email from Neubook Admin."
+
+    subject = data.subject or subject
+    message = (data.message or message) + f"\n\nTemplate: {template}\nTriggered by: {user.email}"
+
+    ok, err = send_email_ex(to_email, subject, message)
     if not ok:
-        raise HTTPException(status_code=503, detail="Test email failed. Check SMTP config/logs.")
-    return {"ok": True, "to_email": to_email}
+        raise HTTPException(status_code=503, detail=f"Test email failed: {err or 'Check SMTP config/logs.'}")
+    return {"ok": True, "to_email": to_email, "template": template}

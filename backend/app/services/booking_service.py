@@ -13,6 +13,7 @@ from app.models.user import User
 from app.services.availability import auto_assign_resource, slot_exists_for_start
 from app.services.booking_status import ACTIVE_SLOT_STATUSES, CANCELLED, COMPLETED, CONFIRMED, PENDING
 from app.services.email_service import send_email
+from app.services.email_templates import booking_customer_email, booking_organiser_email
 from app.services.slot_lock import slot_lock
 
 
@@ -79,17 +80,25 @@ def _send_booking_email(
     base = f"Service: {service_name}\nWhen: {when}\nBooking ID: {booking.id}\n"
 
     if customer:
-        send_email(
-            customer.email,
-            subject,
-            f"Hi {customer.full_name},\n\n{customer_line}\n\n{base}",
+        c_subject, c_body = booking_customer_email(
+            customer_name=customer.full_name,
+            service_name=service_name,
+            when_utc=when,
+            booking_id=booking.id,
+            subject=subject,
+            customer_line=customer_line,
         )
+        send_email(customer.email, c_subject, c_body)
     if organiser:
-        send_email(
-            organiser.email,
-            subject,
-            f"Hi {organiser.full_name},\n\n{organiser_line}\n\n{base}",
+        o_subject, o_body = booking_organiser_email(
+            organiser_name=organiser.full_name,
+            service_name=service_name,
+            when_utc=when,
+            booking_id=booking.id,
+            subject=subject,
+            organiser_line=organiser_line,
         )
+        send_email(organiser.email, o_subject, o_body)
 
 
 def create_booking(

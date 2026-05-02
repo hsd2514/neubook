@@ -11,6 +11,7 @@ from app.models.booking import Booking
 from app.models.waitlist import WaitlistEntry
 from app.services.booking_status import ACTIVE_SLOT_STATUSES
 from app.services.email_service import send_email
+from app.services.email_templates import waitlist_joined_email, waitlist_promoted_email
 from app.models.user import User
 
 
@@ -104,17 +105,8 @@ def join_waitlist(
     customer = db.get(User, customer_id)
     if customer:
         when = start_time.strftime("%Y-%m-%d %H:%M UTC")
-        send_email(
-            customer.email,
-            "You've been added to the waitlist",
-            (
-                f"Hi {customer.full_name},\n\n"
-                f"You are now #{entry.position} in the waitlist for:\n"
-                f"  Service: {at.name}\n"
-                f"  Time:    {when}\n\n"
-                "We will notify you if a spot becomes available."
-            ),
-        )
+        subject, body = waitlist_joined_email(customer.full_name, entry.position, at.name, when)
+        send_email(customer.email, subject, body)
     return entry
 
 
@@ -209,17 +201,8 @@ def promote_next_from_waitlist(
             customer = db.get(User, entry.customer_id)
             if customer:
                 when = start_time.strftime("%Y-%m-%d %H:%M UTC")
-                send_email(
-                    customer.email,
-                    "A spot opened up — book now!",
-                    (
-                        f"Hi {customer.full_name},\n\n"
-                        f"A spot has become available for:\n"
-                        f"  Service: {at.name}\n"
-                        f"  Time:    {when}\n\n"
-                        "Please log in and complete your booking as soon as possible."
-                    ),
-                )
+                subject, body = waitlist_promoted_email(customer.full_name, at.name, when)
+                send_email(customer.email, subject, body)
         if available <= 0:
             break
 
