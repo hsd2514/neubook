@@ -31,7 +31,7 @@ export default function BookingList({ title, bookings, showActions, onCancel, on
               </div>
               {showActions && b.status !== "cancelled" && (
                 <div className="flex gap-1.5">
-                  <Button variant="secondary" className="text-xs py-1" onClick={() => onReschedule(b.id)}>Reschedule</Button>
+                  <Button variant="secondary" className="text-xs py-1" onClick={() => onReschedule(b)}>Reschedule</Button>
                   <Button variant="danger" className="text-xs py-1" onClick={() => onCancel(b.id)}>Cancel</Button>
                 </div>
               )}

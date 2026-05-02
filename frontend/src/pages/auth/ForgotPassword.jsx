@@ -4,33 +4,32 @@ import { Button } from "../../components/ui/Button.jsx";
 import { Input } from "../../components/ui/Input.jsx";
 import { Card } from "../../components/ui/Card.jsx";
 import { api } from "../../services/api.js";
+import { useToast } from "../../context/ToastContext.jsx";
 
 export default function ForgotPassword() {
   const [searchParams] = useSearchParams();
+  const toast = useToast();
   const [email, setEmail] = useState("");
   const [token, setToken] = useState(searchParams.get("token") || "");
   const [np, setNp] = useState("");
   const [step, setStep] = useState(searchParams.get("token") ? 2 : 1);
-  const [msg, setMsg] = useState("");
 
   async function requestReset(e) {
     e.preventDefault();
-    setMsg("");
     try {
       await api("/api/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) });
-      setMsg("If the account exists, check your email for the reset link.");
+      toast.success("If the account exists, check your email for the reset link.");
       setStep(2);
-    } catch (ex) { setMsg(ex.message); }
+    } catch (ex) { toast.error(ex.message || "Failed to send reset link."); }
   }
 
   async function doReset(e) {
     e.preventDefault();
-    setMsg("");
     try {
       await api("/api/auth/reset-password", { method: "POST", body: JSON.stringify({ token, new_password: np }) });
-      setMsg("Password updated. You can sign in.");
+      toast.success("Password updated. You can now sign in.");
       setStep(3);
-    } catch (ex) { setMsg(ex.message); }
+    } catch (ex) { toast.error(ex.message || "Failed to reset password."); }
   }
 
   return (
@@ -50,7 +49,7 @@ export default function ForgotPassword() {
             <Button type="submit" className="w-full">Update password</Button>
           </form>
         )}
-        {msg && <p className="mt-3 text-sm text-on-surface-variant">{msg}</p>}
+        {step === 3 && <p className="mt-4 text-sm text-secondary font-medium">Password updated! You can now sign in.</p>}
         <p className="mt-4 text-center text-sm"><Link to="/login" className="text-primary-container hover:underline">Back to sign in</Link></p>
       </Card>
     </div>

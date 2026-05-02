@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Button } from "../../components/ui/Button.jsx";
 import { Card } from "../../components/ui/Card.jsx";
 import { api } from "../../services/api.js";
 import { useAuth } from "../../context/AuthContext.jsx";
+import { useToast } from "../../context/ToastContext.jsx";
 import StepService from "./booking/StepService.jsx";
 import StepResource from "./booking/StepResource.jsx";
 import StepDate from "./booking/StepDate.jsx";
@@ -153,6 +154,7 @@ export default function BookingFlow() {
   const { id, token } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
+  const toast = useToast();
   const [at, setAt] = useState(null);
   const [branding, setBranding] = useState(null);
   const [notFound, setNotFound] = useState(false);
@@ -172,6 +174,9 @@ export default function BookingFlow() {
   const [err, setErr] = useState("");
   const [waitlistDialog, setWaitlistDialog] = useState(false);
   const [waitlistEntries, setWaitlistEntries] = useState([]);
+  const navigate = useNavigate();
+  const rescheduleId = searchParams.get("reschedule");
+  const urlResourceId = searchParams.get("resource_id");
   const paymentDraftKey = "neubook_phonepe_draft";
 
   // ── fetch appointment type ──────────────────────────────────────────────────
@@ -191,12 +196,20 @@ export default function BookingFlow() {
     }
   }, [id, token]);
 
+  // ── handle reschedule initialization ────────────────────────────────────────
+  useEffect(() => {
+    if (rescheduleId && at) {
+      if (urlResourceId) setResourceId(urlResourceId);
+      setStep(2); // Start at Date selection
+    }
+  }, [rescheduleId, at, urlResourceId]);
+
   const hasSeatMap = at?.booking_mode === "seat_map";
   const seatStepIdx = hasSeatMap ? 4 : null;
   const capacityStepIdx = at ? (at.manage_capacity ? (hasSeatMap ? 5 : 4) : null) : null;
   const qStepIdx = at ? ((hasSeatMap ? 5 : 4) + (at.manage_capacity ? 1 : 0)) : 5;
-  const pStepIdx = at?.advance_payment ? qStepIdx + 1 : null;
-  const cStepIdx = at?.advance_payment ? qStepIdx + 2 : qStepIdx + 1;
+  const pStepIdx = (at?.advance_payment && !rescheduleId) ? qStepIdx + 1 : null;
+  const cStepIdx = pStepIdx ? qStepIdx + 2 : qStepIdx + 1;
 
   // ── phonepe return ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -291,10 +304,24 @@ export default function BookingFlow() {
     setStep(at.advance_payment ? pStepIdx : cStepIdx);
   }
 
-  // ── confirm booking ────────────────────────────────────────────────────────
   async function confirm() {
     setErr("");
     try {
+      if (rescheduleId) {
+        // Reschedule only supports one slot at a time currently
+        const slot = slots[0];
+        if (!slot) throw new Error("Please select a slot");
+        const res = await api(`/api/bookings/${rescheduleId}/reschedule`, {
+          method: "POST",
+          body: JSON.stringify({ start_time: slot.start }),
+        });
+        setBooking(res);
+        setBookings([res]);
+        toast.success("Appointment rescheduled successfully! 🎉");
+        setStep(99);
+        return;
+      }
+
       const results = [];
       for (const slot of slots) {
         const body = {
@@ -324,6 +351,7 @@ export default function BookingFlow() {
       setStep(99);
     } catch (e) {
       setErr(e.message);
+      toast.error(e.message || "Booking failed. Please try again.");
     }
   }
 

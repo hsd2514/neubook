@@ -3,10 +3,12 @@ import { Button } from "../../components/ui/Button.jsx";
 import { Badge } from "../../components/ui/Badge.jsx";
 import { Modal } from "../../components/ui/Modal.jsx";
 import { api } from "../../services/api.js";
+import { useToast } from "../../context/ToastContext.jsx";
 
 const toneMap = { confirmed: "success", pending: "warning", cancelled: "danger" };
 
 export default function BookingsList() {
+  const toast = useToast();
   const [rows, setRows] = useState([]);
   const [filter, setFilter] = useState("");
   const [detail, setDetail] = useState(null);
@@ -22,11 +24,19 @@ export default function BookingsList() {
   useEffect(() => { load(); }, [filter]);
 
   async function confirmBooking(id) {
-    try { await api(`/api/bookings/${id}/confirm`, { method: "POST" }); load(); setDetail(null); } catch (e) { alert(e.message); }
+    try {
+      await api(`/api/bookings/${id}/confirm`, { method: "POST" });
+      load(); setDetail(null);
+      toast.success("Booking confirmed.");
+    } catch (e) { toast.error(e.message || "Failed to confirm booking."); }
   }
   async function cancelBooking(id) {
     if (!confirm("Cancel this booking?")) return;
-    try { await api(`/api/bookings/${id}/cancel`, { method: "POST" }); load(); setDetail(null); } catch (e) { alert(e.message); }
+    try {
+      await api(`/api/bookings/${id}/cancel`, { method: "POST" });
+      load(); setDetail(null);
+      toast.success("Booking cancelled.");
+    } catch (e) { toast.error(e.message || "Failed to cancel booking."); }
   }
 
   const filters = ["", "pending", "confirmed", "cancelled"];
