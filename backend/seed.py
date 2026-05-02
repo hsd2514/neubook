@@ -1,12 +1,21 @@
-"""Seed the database with test users for each role.
+"""Seed the database with rich demo data.
 
 Usage:
     uv run python seed.py
 """
 
-from sqlalchemy import select
+from datetime import datetime, time, timedelta, timezone
 
-from app.database import SessionLocal, engine, Base
+from sqlalchemy import select
+from sqlalchemy.exc import ProgrammingError
+from sqlalchemy.orm import joinedload
+
+from app.database import Base, SessionLocal, engine
+from app.models.appointment_type import AppointmentType
+from app.models.booking import Booking
+from app.models.question import Question
+from app.models.resource import Resource
+from app.models.schedule import Schedule
 from app.models.user import User
 from app.utils.password import hash_password
 
@@ -14,33 +23,272 @@ Base.metadata.create_all(bind=engine)
 
 USERS = [
     {"full_name": "Alice Customer", "email": "customer@test.com", "password": "test1234", "role": "customer"},
+    {"full_name": "Bea Customer", "email": "customer2@test.com", "password": "test1234", "role": "customer"},
     {"full_name": "Bob Organiser", "email": "organiser@test.com", "password": "test1234", "role": "organiser"},
     {"full_name": "Charlie Admin", "email": "admin@test.com", "password": "test1234", "role": "admin"},
 ]
 
+
+def _get_or_create_user(db, data: dict) -> User:
+    user = db.execute(select(User).where(User.email == data["email"])).scalar_one_or_none()
+    if user:
+        user.full_name = data["full_name"]
+        user.role = data["role"]
+        user.is_active = True
+        if not user.password_hash:
+            user.password_hash = hash_password(data["password"])
+        print(f"  keep  {data['email']} [{data['role']}]")
+        return user
+    user = User(
+        full_name=data["full_name"],
+        email=data["email"],
+        password_hash=hash_password(data["password"]),
+        role=data["role"],
+        is_active=True,
+    )
+    db.add(user)
+    db.flush()
+    print(f"  added {data['email']} [{data['role']}]")
+    return user
+
+
+def _upsert_appointments(db, organiser: User):
+    specs = [
+        {
+            "name": "Dental care",
+            "description": "General dental consultation and quick checks.",
+            "duration_minutes": 30,
+            "appointment_kind": "resource",
+            "slot_schedule": "weekly",
+            "is_published": True,
+            "manage_capacity": True,
+            "advance_payment": True,
+            "manual_confirmation": True,
+            "assignment_mode": "manual",
+            "max_bookings_per_slot": 3,
+            "share_link": "dental-care-demo",
+            "resources": ["Dr. Maya", "Dr. Vipa"],
+            "schedules": [
+                {"day_of_week": 0, "start_time": time(10, 0), "end_time": time(13, 0)},
+                {"day_of_week": 2, "start_time": time(14, 0), "end_time": time(17, 0)},
+            ],
+            "questions": [
+                {"label": "Any pain area we should know?", "field_type": "text", "is_required": True, "sort_order": 1},
+                {"label": "Need anesthesia discussion?", "field_type": "checkbox", "is_required": False, "sort_order": 2},
+            ],
+        },
+        {
+            "name": "Tennis court booking",
+            "description": "Reserve a tennis court by slot.",
+            "duration_minutes": 60,
+            "appointment_kind": "resource",
+            "slot_schedule": "weekly",
+            "is_published": True,
+            "manage_capacity": False,
+            "advance_payment": False,
+            "manual_confirmation": False,
+            "assignment_mode": "manual",
+            "max_bookings_per_slot": 1,
+            "share_link": "tennis-demo",
+            "resources": ["Court 1", "Court 2"],
+            "schedules": [
+                {"day_of_week": 1, "start_time": time(8, 0), "end_time": time(12, 0)},
+                {"day_of_week": 4, "start_time": time(16, 0), "end_time": time(20, 0)},
+            ],
+            "questions": [
+                {"label": "Any special request?", "field_type": "text", "is_required": False, "sort_order": 1},
+            ],
+        },
+        {
+            "name": "Private mentor session",
+            "description": "1:1 mentoring call by appointment.",
+            "duration_minutes": 45,
+            "appointment_kind": "user",
+            "slot_schedule": "weekly",
+            "is_published": True,
+            "manage_capacity": False,
+            "advance_payment": False,
+            "manual_confirmation": False,
+            "assignment_mode": "manual",
+            "max_bookings_per_slot": 1,
+            "share_link": "mentor-demo",
+            "resources": [],
+            "schedules": [
+                {"day_of_week": 3, "start_time": time(9, 0), "end_time": time(12, 0)},
+            ],
+            "questions": [
+                {"label": "What topic should we cover?", "field_type": "text", "is_required": True, "sort_order": 1},
+            ],
+        },
+    ]
+
+    created = []
+    for spec in specs:
+        appt = (
+            db.execute(
+                select(AppointmentType)
+                .options(
+                    joinedload(AppointmentType.resources),
+                    joinedload(AppointmentType.schedules),
+                    joinedload(AppointmentType.questions),
+                )
+                .where(
+                    AppointmentType.organiser_id == organiser.id,
+                    AppointmentType.name == spec["name"],
+                )
+            )
+            .unique()
+            .scalar_one_or_none()
+        )
+        if not appt:
+            appt = AppointmentType(organiser_id=organiser.id, **{k: spec[k] for k in spec if k not in ("resources", "schedules", "questions")})
+            db.add(appt)
+            db.flush()
+            print(f"  added appointment: {spec['name']}")
+        else:
+            for key, value in spec.items():
+                if key in ("resources", "schedules", "questions"):
+                    continue
+                setattr(appt, key, value)
+            print(f"  keep  appointment: {spec['name']}")
+
+        # reset child records to keep deterministic demo data
+        for r in list(appt.resources):
+            db.delete(r)
+        for s in list(appt.schedules):
+            db.delete(s)
+        for q in list(appt.questions):
+            db.delete(q)
+        db.flush()
+
+        resource_id_map = {}
+        for r_name in spec["resources"]:
+            r = Resource(appointment_type_id=appt.id, name=r_name, working_hours=None)
+            db.add(r)
+            db.flush()
+            resource_id_map[r_name] = r.id
+
+        for s in spec["schedules"]:
+            db.add(
+                Schedule(
+                    appointment_type_id=appt.id,
+                    resource_id=None if appt.appointment_kind == "user" else None,
+                    day_of_week=s["day_of_week"],
+                    start_time=s["start_time"],
+                    end_time=s["end_time"],
+                )
+            )
+
+        for q in spec["questions"]:
+            db.add(Question(appointment_type_id=appt.id, options=None, **q))
+
+        created.append(appt)
+    db.flush()
+    return created
+
+
+def _seed_bookings(db, appointments: list[AppointmentType], customer: User, customer2: User):
+    for appt in appointments:
+        db.query(Booking).filter(Booking.appointment_type_id == appt.id).delete(synchronize_session=False)
+    db.flush()
+
+    now = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+    future_1 = now + timedelta(days=2, hours=2)
+    future_2 = now + timedelta(days=4, hours=1)
+    past_1 = now - timedelta(days=2, hours=1)
+
+    for appt in appointments:
+        resource_id = None
+        if appt.appointment_kind == "resource":
+            first_resource = db.execute(select(Resource).where(Resource.appointment_type_id == appt.id).order_by(Resource.id)).scalars().first()
+            resource_id = first_resource.id if first_resource else None
+
+        # upcoming booking
+        db.add(
+            Booking(
+                customer_id=customer.id,
+                appointment_type_id=appt.id,
+                resource_id=resource_id,
+                start_time=future_1,
+                end_time=future_1 + timedelta(minutes=appt.duration_minutes),
+                capacity=1,
+                status="pending" if appt.manual_confirmation else "confirmed",
+                payment_status="paid" if appt.advance_payment else "not_required",
+                payment_reference="seed_txn_1001" if appt.advance_payment else None,
+                answers={"seed": True},
+            )
+        )
+        # another booking for utilization
+        db.add(
+            Booking(
+                customer_id=customer2.id,
+                appointment_type_id=appt.id,
+                resource_id=resource_id,
+                start_time=future_2,
+                end_time=future_2 + timedelta(minutes=appt.duration_minutes),
+                capacity=1,
+                status="confirmed",
+                payment_status="paid" if appt.advance_payment else "not_required",
+                payment_reference="seed_txn_2001" if appt.advance_payment else None,
+                answers={"seed": True},
+            )
+        )
+        # past/cancelled sample
+        db.add(
+            Booking(
+                customer_id=customer.id,
+                appointment_type_id=appt.id,
+                resource_id=resource_id,
+                start_time=past_1,
+                end_time=past_1 + timedelta(minutes=appt.duration_minutes),
+                capacity=1,
+                status="cancelled",
+                payment_status="not_required",
+                payment_reference=None,
+                answers={"seed": True},
+            )
+        )
+
+
 def seed():
     db = SessionLocal()
     try:
-        for u in USERS:
-            exists = db.execute(select(User).where(User.email == u["email"])).scalar_one_or_none()
-            if exists:
-                print(f"  skip  {u['email']} (already exists)")
-                continue
-            db.add(User(
-                full_name=u["full_name"],
-                email=u["email"],
-                password_hash=hash_password(u["password"]),
-                role=u["role"],
-                is_active=True,
-            ))
-            print(f"  added {u['email']} [{u['role']}]")
-        db.commit()
+        print("\nSeeding users...")
+        users = {u["email"]: _get_or_create_user(db, u) for u in USERS}
+        db.flush()
+
+        organiser = users["organiser@test.com"]
+        customer = users["customer@test.com"]
+        customer2 = users["customer2@test.com"]
+
+        print("\nSeeding appointments/resources/schedules/questions...")
+        appointments = _upsert_appointments(db, organiser)
+
+        print("\nSeeding sample bookings...")
+        _seed_bookings(db, appointments, customer, customer2)
+
+        try:
+            db.commit()
+        except ProgrammingError as exc:
+            db.rollback()
+            msg = str(exc).lower()
+            if "payment_status" in msg or "payment_reference" in msg:
+                print("\nDatabase schema is behind models.")
+                print("Run: uv run alembic upgrade head")
+                print("Then rerun: uv run python seed.py\n")
+                return
+            raise
+
         print("\nDone! Test accounts:\n")
         for u in USERS:
             print(f"  {u['role']:12} {u['email']:24} password: {u['password']}")
+        print("\nDemo services:")
+        for appt in appointments:
+            print(f"  - {appt.name} (published={appt.is_published}, advance_payment={appt.advance_payment})")
         print()
     finally:
         db.close()
+
 
 if __name__ == "__main__":
     seed()
