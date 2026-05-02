@@ -6,13 +6,17 @@ function getToken() {
 
 export async function api(path, options = {}) {
   const headers = { ...(options.headers || {}) };
-  if (!(options.body instanceof FormData)) {
+  let body = options.body;
+  if (!(body instanceof FormData)) {
     headers["Content-Type"] = headers["Content-Type"] || "application/json";
+    if (body && typeof body === "object") {
+      body = JSON.stringify(body);
+    }
   }
   const t = getToken();
   if (t) headers["Authorization"] = `Bearer ${t}`;
 
-  const res = await fetch(`${base()}${path}`, { ...options, headers });
+  const res = await fetch(`${base()}${path}`, { ...options, headers, body });
   const text = await res.text();
   let data = null;
   try {
