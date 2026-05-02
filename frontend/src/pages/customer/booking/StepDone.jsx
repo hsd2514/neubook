@@ -57,6 +57,7 @@ export default function StepDone({ booking, bookings, at }) {
   const list = bookings && bookings.length ? bookings : booking ? [booking] : [];
   const allConfirmed = list.every((b) => b.status === "confirmed");
   const anyPending = list.some((b) => b.status === "pending");
+  const first = list[0];
 
   return (
     <Card className="text-center">
@@ -64,7 +65,9 @@ export default function StepDone({ booking, bookings, at }) {
         <CalendarCheck size={32} />
       </div>
       <h3 className="mt-4 text-xl font-bold text-on-surface">
-        {list.length > 1 ? `${list.length} appointments confirmed!` : "Appointment confirmed!"}
+        {list.length > 1
+          ? (allConfirmed ? `${list.length} appointments confirmed!` : `${list.length} appointments created!`)
+          : (allConfirmed ? "Appointment confirmed!" : "Appointment created!")}
       </h3>
       <p className="mt-1 text-sm text-on-surface-variant">
         {anyPending ? "You will get a mail when organiser confirms your booking." : "Your booking has been confirmed."}
@@ -75,22 +78,24 @@ export default function StepDone({ booking, bookings, at }) {
       ))}
 
       <div className="mt-6 flex flex-wrap justify-center gap-3">
-        <a
-          href={buildGoogleCalendarLink({
-            title: at?.name || "Appointment",
-            description: `Booking #${booking.id}`,
-            location: at?.resources?.find((r) => r.id === booking.resource_id)?.name,
-            startTime: booking.start_time,
-            endTime: booking.end_time,
-          })}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Button variant="secondary">
-            <ExternalLink size={16} className="mr-1.5" />
-            Add to Google Calendar
-          </Button>
-        </a>
+        {first && (
+          <a
+            href={buildGoogleCalendarLink({
+              title: at?.name || "Appointment",
+              description: list.length > 1 ? `Bookings: ${list.map((b) => `#${b.id}`).join(", ")}` : `Booking #${first.id}`,
+              location: at?.resources?.find((r) => r.id === first.resource_id)?.name,
+              startTime: first.start_time,
+              endTime: first.end_time,
+            })}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Button variant="secondary">
+              <ExternalLink size={16} className="mr-1.5" />
+              Add first slot to Google Calendar
+            </Button>
+          </a>
+        )}
         <Link to="/profile"><Button variant="secondary">My appointments</Button></Link>
         <Link to="/"><Button>Book another</Button></Link>
       </div>

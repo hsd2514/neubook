@@ -66,7 +66,7 @@ export default function BookingFlow() {
       setResourceId(draft.resourceId ?? null);
       setDate(draft.date ?? "");
       setAvailability(Array.isArray(draft.availability) ? draft.availability : []);
-      setSlot(draft.slot ?? null);
+      setSlots(Array.isArray(draft.slots) ? draft.slots : []);
       setCapacity(draft.capacity ?? 1);
       setAnswers(draft.answers ?? {});
     } catch {
@@ -187,6 +187,9 @@ export default function BookingFlow() {
       if (!Number.isFinite(amountPaisa) || amountPaisa < 100) {
         throw new Error("Service amount is not configured correctly for this appointment.");
       }
+      if (!slots.length) {
+        throw new Error("Please select at least one slot before payment.");
+      }
       const orderId = `nb_${at.id}_${Date.now()}`;
       window.sessionStorage.setItem(
         paymentDraftKey,
@@ -195,7 +198,7 @@ export default function BookingFlow() {
           resourceId,
           date,
           availability,
-          slot,
+          slots,
           capacity,
           answers,
         }),
@@ -205,7 +208,7 @@ export default function BookingFlow() {
       const response = await api("/api/bookings/payments/phonepe/initiate", {
         method: "POST",
         body: JSON.stringify({
-          amount_paisa: amountPaisa,
+          amount_paisa: amountPaisa * slots.length,
           redirect_url: redirectUrl,
           merchant_order_id: orderId,
         }),
