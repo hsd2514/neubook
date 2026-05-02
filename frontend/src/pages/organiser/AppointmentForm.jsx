@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, ExternalLink } from "lucide-react";
+import { ArrowLeft, Download, ExternalLink } from "lucide-react";
+import QRCode from "qrcode";
 import { Button } from "../../components/ui/Button.jsx";
 import { Badge } from "../../components/ui/Badge.jsx";
 import { Tabs } from "../../components/ui/Tabs.jsx";
@@ -26,6 +27,15 @@ export default function AppointmentForm() {
   const { id } = useParams();
   const { isNew, form, setForm, at, setAt: refresh, err, saveBase, loading, notFound } = useAppointment(id);
   const [tab, setTab] = useState("basics");
+  const [copied, setCopied] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState("");
+  const [copiedEmbed, setCopiedEmbed] = useState("");
+
+  const shareBookingUrl = useMemo(() => {
+    if (!at?.share_link || typeof window === "undefined") return "";
+    return `${window.location.origin}/book/share/${encodeURIComponent(at.share_link)}`;
+  }, [at?.share_link]);
+
   const previewHref = !isNew && at?.share_link && form.visibility === "unlisted" ? `/book/share/${at.share_link}` : `/book/${id}`;
   const embedUrl = at?.share_link ? `${window.location.origin}/embed/book/share/${encodeURIComponent(at.share_link)}` : "";
   const iframeSnippet = embedUrl
@@ -34,8 +44,24 @@ export default function AppointmentForm() {
   const jsSnippet = embedUrl
     ? `<div id="neubook-widget"></div><script>(function(){var f=document.createElement('iframe');f.src='${embedUrl}';f.style.width='100%';f.style.height='760px';f.style.border='0';f.loading='lazy';f.title='Book appointment';document.getElementById('neubook-widget').appendChild(f);})();</script>`
     : "";
-  const [copied, setCopied] = useState(false);
-  const [copiedEmbed, setCopiedEmbed] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    if (!shareBookingUrl) {
+      setQrDataUrl("");
+      return undefined;
+    }
+    QRCode.toDataURL(shareBookingUrl, { width: 220, margin: 1, errorCorrectionLevel: "M" })
+      .then((dataUrl) => {
+        if (active) setQrDataUrl(dataUrl);
+      })
+      .catch(() => {
+        if (active) setQrDataUrl("");
+      });
+    return () => {
+      active = false;
+    };
+  }, [shareBookingUrl]);
 
   if (!isNew && loading) return <p className="p-8 text-on-surface-variant">Loading…</p>;
   if (!isNew && notFound) return <p className="p-8 text-error">Appointment not found or inaccessible.</p>;
@@ -64,10 +90,9 @@ export default function AppointmentForm() {
   }
 
   async function copyShareLink() {
-    if (!at?.share_link) return;
-    const link = `${window.location.origin}/book/share/${encodeURIComponent(at.share_link)}`;
+    if (!shareBookingUrl) return;
     try {
-      await navigator.clipboard.writeText(link);
+      await navigator.clipboard.writeText(shareBookingUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -75,6 +100,14 @@ export default function AppointmentForm() {
     }
   }
 
+  function downloadQr() {
+    if (!qrDataUrl || !at?.name) return;
+    const a = document.createElement("a");
+    const safeName = at.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+    a.href = qrDataUrl;
+    a.download = `${safeName || "appointment"}-qr.png`;
+    a.click();
+  }
   return (
     <div className="mx-auto max-w-4xl">
       {/* Top bar like Odoo form view */}
@@ -110,6 +143,29 @@ export default function AppointmentForm() {
           <Button onClick={(e) => saveBase(e)}>{isNew ? "Create" : "Save"}</Button>
         </div>
       </div>
+
+      {!isNew && at?.share_link && (
+        <div className="mb-4 rounded-lg border border-outline-variant bg-surface-container-low p-4">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold text-on-surface">Booking QR</p>
+              <p className="text-xs text-on-surface-variant">Scan to open the canonical booking link for this appointment.</p>
+              <p className="mt-1 break-all text-xs text-on-surface-variant">{shareBookingUrl}</p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="ghost" className="text-xs" onClick={copyShareLink}>{copied ? "Copied" : "Copy link"}</Button>
+              <Button variant="ghost" className="gap-1 text-xs" onClick={downloadQr} disabled={!qrDataUrl}><Download size={14} /> Download QR</Button>
+            </div>
+          </div>
+          <div className="mt-3 inline-flex rounded-lg border border-outline-variant bg-white p-2">
+            {qrDataUrl ? (
+              <img src={qrDataUrl} alt="Booking share link QR code" className="h-44 w-44" />
+            ) : (
+              <div className="flex h-44 w-44 items-center justify-center text-xs text-on-surface-variant">Generating QR…</div>
+            )}
+          </div>
+        </div>
+      )}
 
       {err && <p className="mb-4 rounded-lg bg-error-container/30 px-4 py-2 text-sm text-error">{err}</p>}
 
