@@ -1,11 +1,21 @@
 import { Calendar, MoreHorizontal } from "lucide-react";
+import { useMemo, useState } from "react";
 import { Badge } from "../../../components/ui/Badge.jsx";
 import { Button } from "../../../components/ui/Button.jsx";
 import { Card } from "../../../components/ui/Card.jsx";
 
 const toneMap = { confirmed: "success", pending: "warning", cancelled: "danger" };
+const PAGE_SIZE = 5;
 
 export default function BookingList({ title, bookings, showActions, onCancel, onReschedule }) {
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(bookings.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const visible = useMemo(
+    () => bookings.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [bookings, safePage],
+  );
+
   return (
     <Card>
       <div className="flex items-center justify-between">
@@ -13,7 +23,7 @@ export default function BookingList({ title, bookings, showActions, onCancel, on
         <Badge>{bookings.length}</Badge>
       </div>
       <div className="mt-4 divide-y divide-outline-variant">
-        {bookings.map((b) => {
+        {visible.map((b) => {
           const start = new Date(b.start_time);
           return (
             <div key={b.id} className="flex flex-wrap items-center gap-4 py-3">
@@ -46,6 +56,19 @@ export default function BookingList({ title, bookings, showActions, onCancel, on
         })}
         {!bookings.length && <p className="py-4 text-center text-sm text-on-surface-variant">No appointments.</p>}
       </div>
+      {bookings.length > PAGE_SIZE && (
+        <div className="mt-4 flex items-center justify-end gap-2">
+          <Button variant="secondary" className="px-3 py-1 text-xs" disabled={safePage <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+            Prev
+          </Button>
+          <span className="text-xs text-on-surface-variant">
+            Page {safePage} of {totalPages}
+          </span>
+          <Button variant="secondary" className="px-3 py-1 text-xs" disabled={safePage >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
+            Next
+          </Button>
+        </div>
+      )}
     </Card>
   );
 }
