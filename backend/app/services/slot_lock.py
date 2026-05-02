@@ -24,7 +24,7 @@ def _slot_key(appointment_type_id: int, resource_id: int | None, start_time_iso:
 
 class SlotLockManager:
     def __init__(self) -> None:
-        self.redis_url = settings.redis_url
+        self.redis_url = settings.lock_redis_url
         self.ttl_seconds = settings.slot_lock_ttl_seconds
         self._redis_client: Redis | None = None
         self._redis_disabled = False
