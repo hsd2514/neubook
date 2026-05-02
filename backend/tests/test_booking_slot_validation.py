@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 from app.models.appointment_type import AppointmentType
 from app.models.booking import Booking
+from app.models.question import Question
 from app.models.resource import Resource
 from app.models.schedule import Schedule
 from app.models.user import User
@@ -211,3 +212,59 @@ def test_create_booking_sets_paid_status_when_payment_confirmed(db_session):
     )
     assert booking.payment_status == "paid"
     assert booking.payment_reference == "txn_42"
+
+
+def test_create_booking_rejects_missing_required_answers(db_session):
+    customer, appt, resource = _seed_resource_appointment(db_session)
+    db_session.add(
+        Question(
+            appointment_type_id=appt.id,
+            label="Symptoms",
+            field_type="text",
+            is_required=True,
+            options=None,
+            sort_order=1,
+        )
+    )
+    db_session.commit()
+
+    try:
+        create_booking(
+            db_session,
+            customer.id,
+            appt.id,
+            resource.id,
+            datetime(2026, 1, 5, 10, 30, tzinfo=timezone.utc),
+            capacity=1,
+            answers={},
+        )
+        assert False, "Expected ValueError for missing required answers"
+    except ValueError as exc:
+        assert "Missing required answers" in str(exc)
+        assert "Symptoms" in str(exc)
+
+
+def test_create_booking_accepts_required_answers(db_session):
+    customer, appt, resource = _seed_resource_appointment(db_session)
+    q = Question(
+        appointment_type_id=appt.id,
+        label="Symptoms",
+        field_type="text",
+        is_required=True,
+        options=None,
+        sort_order=1,
+    )
+    db_session.add(q)
+    db_session.commit()
+    db_session.refresh(q)
+
+    booking = create_booking(
+        db_session,
+        customer.id,
+        appt.id,
+        resource.id,
+        datetime(2026, 1, 5, 10, 30, tzinfo=timezone.utc),
+        capacity=1,
+        answers={str(q.id): "tooth pain"},
+    )
+    assert booking.id is not None

@@ -1,7 +1,26 @@
 import { Card } from "../../../components/ui/Card.jsx";
 import { Button } from "../../../components/ui/Button.jsx";
+import { useState } from "react";
 
 export default function StepQuestions({ questions, answers, setAnswers, onBack, onNext }) {
+  const [err, setErr] = useState("");
+
+  function validateAndNext() {
+    const missing = questions.filter((q) => {
+      if (!q.is_required) return false;
+      const raw = answers[q.id] ?? answers[String(q.id)];
+      if (q.field_type === "checkbox") return raw !== true;
+      if (typeof raw === "string") return !raw.trim();
+      return raw === undefined || raw === null;
+    });
+    if (missing.length > 0) {
+      setErr(`Please answer required fields: ${missing.map((m) => m.label).join(", ")}`);
+      return;
+    }
+    setErr("");
+    onNext();
+  }
+
   return (
     <Card>
       <h3 className="font-semibold text-on-surface">Questions</h3>
@@ -25,9 +44,10 @@ export default function StepQuestions({ questions, answers, setAnswers, onBack, 
           )}
         </div>
       ))}
+      {err && <p className="mt-4 text-sm text-error">{err}</p>}
       <div className="mt-6 flex gap-2">
         <Button variant="secondary" onClick={onBack}>Back</Button>
-        <Button onClick={onNext}>Review</Button>
+        <Button onClick={validateAndNext}>Review</Button>
       </div>
     </Card>
   );

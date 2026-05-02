@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.models.appointment_type import AppointmentType
 from app.models.booking import Booking
+from app.models.question import Question
 from app.models.resource import Resource
 from app.services.availability import slot_exists_for_start
 from app.services.booking_status import ACTIVE_SLOT_STATUSES, CANCELLED, COMPLETED, CONFIRMED, PENDING
@@ -15,6 +16,45 @@ def _normalize_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         raise ValueError("start_time must include timezone")
     return value.astimezone(timezone.utc).replace(second=0, microsecond=0)
+
+
+def _required_answer_missing(question: Question, value) -> bool:
+    if value is None:
+        return True
+    if question.field_type == "checkbox":
+        return value is not True
+    if isinstance(value, str):
+        return not value.strip()
+    if isinstance(value, (list, tuple, set, dict)):
+        return len(value) == 0
+    return False
+
+
+def _validate_required_questions(db: Session, appointment_type_id: int, answers: dict | list | None) -> None:
+    required_questions = (
+        db.execute(
+            select(Question).where(
+                Question.appointment_type_id == appointment_type_id,
+                Question.is_required.is_(True),
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if not required_questions:
+        return
+
+    if not isinstance(answers, dict):
+        raise ValueError("Missing required answers: " + ", ".join(q.label for q in required_questions))
+
+    missing_labels: list[str] = []
+    for q in required_questions:
+        # FE serializes keys as strings; support int and str keys.
+        raw = answers.get(q.id, answers.get(str(q.id)))
+        if _required_answer_missing(q, raw):
+            missing_labels.append(q.label)
+    if missing_labels:
+        raise ValueError("Missing required answers: " + ", ".join(missing_labels))
 
 
 def create_booking(
@@ -45,6 +85,7 @@ def create_booking(
             raise ValueError("Invalid resource")
     if at.advance_payment and not payment_confirmed:
         raise ValueError("Payment required before booking confirmation")
+    _validate_required_questions(db, appointment_type_id, answers)
 
     start_time = _normalize_utc(start_time)
     with slot_lock(appointment_type_id, resource_id, start_time.isoformat()):
