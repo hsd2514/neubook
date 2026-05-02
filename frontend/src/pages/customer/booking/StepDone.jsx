@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { CalendarCheck, Clock, MapPin, Users, ExternalLink } from "lucide-react";
 import { Card } from "../../../components/ui/Card.jsx";
@@ -5,8 +6,9 @@ import { Badge } from "../../../components/ui/Badge.jsx";
 import { Button } from "../../../components/ui/Button.jsx";
 import { buildGoogleCalendarLink } from "../../../utils/calendarLink.js";
 
-function BookingSummary({ booking, at }) {
+function BookingSummary({ booking, at, onDownload, downloadBusy }) {
   const start = new Date(booking.start_time);
+  const paymentLabel = at?.advance_payment && booking.payment_status === "paid" ? "PAID" : "NOT PAID";
   return (
     <div className="mx-auto mt-4 max-w-sm rounded-lg border border-outline-variant bg-surface-container-low p-4 text-left space-y-3">
       <div className="flex gap-3">
@@ -44,20 +46,53 @@ function BookingSummary({ booking, at }) {
       <div className="border-t border-outline-variant pt-2">
         <Badge tone={booking.status === "confirmed" ? "success" : booking.status === "waitlisted" || booking.status === "notified" ? "warning" : "warning"}>{booking.status}</Badge>
         <span className="ml-2">
-          <Badge tone={booking.payment_status === "paid" ? "success" : "default"}>
-            payment: {booking.payment_status}
+          <Badge tone={paymentLabel === "PAID" ? "success" : "default"}>
+            payment: {paymentLabel}
           </Badge>
         </span>
       </div>
+      {booking.id && (
+        <Button type="button" variant="secondary" className="w-full" onClick={() => onDownload(booking.id)} disabled={downloadBusy}>
+          Download Receipt
+        </Button>
+      )}
     </div>
   );
 }
 
 export default function StepDone({ booking, bookings, at }) {
+  const [downloadBusy, setDownloadBusy] = useState(false);
+  const [downloadError, setDownloadError] = useState("");
   const list = bookings && bookings.length ? bookings : booking ? [booking] : [];
   const allConfirmed = list.every((b) => b.status === "confirmed");
   const anyPending = list.some((b) => b.status === "pending");
   const first = list[0];
+
+  async function downloadReceipt(bookingId) {
+    setDownloadError("");
+    setDownloadBusy(true);
+    try {
+      const token = localStorage.getItem("access_token");
+      const res = await fetch(`/api/bookings/${bookingId}/receipt.pdf`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || "Failed to download receipt");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `receipt-booking-${bookingId}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (ex) {
+      setDownloadError(ex.message || "Failed to download receipt");
+    } finally {
+      setDownloadBusy(false);
+    }
+  }
 
   return (
     <Card className="text-center">
@@ -74,8 +109,16 @@ export default function StepDone({ booking, bookings, at }) {
       </p>
 
       {list.map((b) => (
-        <BookingSummary key={b.id || b.start_time} booking={b} at={at} />
+        <BookingSummary
+          key={b.id || b.start_time}
+          booking={b}
+          at={at}
+          onDownload={downloadReceipt}
+          downloadBusy={downloadBusy}
+        />
       ))}
+
+      {downloadError && <p className="mt-3 text-sm text-error">{downloadError}</p>}
 
       <div className="mt-6 flex flex-wrap justify-center gap-3">
         {first && first.start_time && first.end_time && (() => {
