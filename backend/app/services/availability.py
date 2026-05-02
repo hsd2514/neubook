@@ -1,6 +1,5 @@
 """Compute available booking slots from weekly schedules minus existing bookings."""
 
-from collections import defaultdict
 from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -76,13 +75,19 @@ def get_availability(
         bookings_q = bookings_q.where(Booking.resource_id == resource_id)
     bookings = db.execute(bookings_q).scalars().all()
 
-    def slot_usage_key(start: datetime, res_id: int | None) -> tuple:
-        return (start.astimezone(timezone.utc).replace(tzinfo=timezone.utc), res_id)
-
-    usage: dict[tuple, int] = defaultdict(int)
-    for b in bookings:
-        key = slot_usage_key(b.start_time, b.resource_id)
-        usage[key] += b.capacity
+    def _overlap_usage(slot_start: datetime, slot_end: datetime, res_id: int | None) -> int:
+        """Sum capacity of bookings whose interval overlaps [slot_start, slot_end)."""
+        total = 0
+        ss_utc = slot_start.astimezone(timezone.utc)
+        se_utc = slot_end.astimezone(timezone.utc)
+        for b in bookings:
+            if res_id is not None and b.resource_id != res_id:
+                continue
+            b_start = b.start_time if b.start_time.tzinfo else b.start_time.replace(tzinfo=timezone.utc)
+            b_end = b.end_time if b.end_time.tzinfo else b.end_time.replace(tzinfo=timezone.utc)
+            if b_start < se_utc and b_end > ss_utc:
+                total += b.capacity
+        return total
 
     days_out: list[dict] = []
     d = from_date
@@ -105,10 +110,7 @@ def get_availability(
                 while cur + duration <= end:
                     slot_start = cur
                     slot_end = cur + duration
-                    used = usage.get(
-                        (slot_start.astimezone(timezone.utc).replace(tzinfo=timezone.utc), res_id),
-                        0,
-                    )
+                    used = _overlap_usage(slot_start, slot_end, res_id)
                     avail = max(0, max_per_slot - used)
                     if avail > 0:
                         day_slots.append(
@@ -155,16 +157,38 @@ def slot_exists_for_start(
     start_time: datetime,
     tz_name: str = "UTC",
 ) -> bool:
-    """Return True when start_time is a schedulable slot for this appointment."""
+    """Return True when start_time aligns to at least one configured schedule slot."""
     if start_time.tzinfo is None:
         return False
 
-    slot_utc = start_time.astimezone(timezone.utc).replace(second=0, microsecond=0)
-    day = slot_utc.date()
-    days = get_availability(db, appointment_type_id, resource_id, day, day, tz_name=tz_name)
-    for d in days:
-        for slot in d["slots"]:
-            slot_start_utc = slot["start"].astimezone(timezone.utc).replace(second=0, microsecond=0)
-            if slot_start_utc == slot_utc:
-                return True
+    at = db.get(AppointmentType, appointment_type_id)
+    if not at:
+        return False
+
+    tz = _resolve_tz(tz_name)
+    local_start = start_time.astimezone(tz).replace(second=0, microsecond=0)
+    local_day = local_start.date()
+    local_dow = local_day.weekday()
+    duration = timedelta(minutes=at.duration_minutes)
+
+    schedules = db.execute(
+        select(Schedule).where(
+            Schedule.appointment_type_id == appointment_type_id,
+            Schedule.day_of_week == local_dow,
+        )
+    ).scalars().all()
+
+    if resource_id is not None:
+        schedules = [s for s in schedules if s.resource_id is None or s.resource_id == resource_id]
+    elif at.appointment_kind == "resource":
+        schedules = [s for s in schedules if s.resource_id is None]
+
+    for sch in schedules:
+        window_start = datetime.combine(local_day, sch.start_time, tzinfo=tz)
+        window_end = datetime.combine(local_day, sch.end_time, tzinfo=tz)
+        if local_start < window_start or local_start + duration > window_end:
+            continue
+        delta = local_start - window_start
+        if delta % duration == timedelta(0):
+            return True
     return False
