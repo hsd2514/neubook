@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "../../components/ui/Button.jsx";
 import { Badge } from "../../components/ui/Badge.jsx";
 import { Modal } from "../../components/ui/Modal.jsx";
@@ -8,6 +8,7 @@ import { api } from "../../services/api.js";
 import { useToast } from "../../context/ToastContext.jsx";
 
 const toneMap = { confirmed: "success", pending: "warning", cancelled: "danger" };
+const PAGE_SIZE = 10;
 
 export default function BookingsList() {
   const toast = useToast();
@@ -15,6 +16,7 @@ export default function BookingsList() {
   const [filter, setFilter] = useState("");
   const [detail, setDetail] = useState(null);
   const [loadErr, setLoadErr] = useState("");
+  const [page, setPage] = useState(1);
 
   function load() {
     const q = filter ? `?status_filter=${encodeURIComponent(filter)}` : "";
@@ -24,6 +26,7 @@ export default function BookingsList() {
       .catch((ex) => { setRows([]); setLoadErr(ex.message || "Failed to load bookings"); });
   }
   useEffect(() => { load(); }, [filter]);
+  useEffect(() => { setPage(1); }, [filter, rows.length]);
 
   async function confirmBooking(id) {
     try {
@@ -42,6 +45,16 @@ export default function BookingsList() {
   }
 
   const filters = ["", "pending", "confirmed", "cancelled"];
+  const sortedRows = useMemo(
+    () => [...rows].sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime()),
+    [rows],
+  );
+  const totalPages = Math.max(1, Math.ceil(sortedRows.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pagedRows = useMemo(
+    () => sortedRows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [sortedRows, safePage],
+  );
 
   return (
     <div>
@@ -70,7 +83,7 @@ export default function BookingsList() {
         <table className="w-full text-left text-sm">
           <thead className="border-b border-outline-variant bg-surface-container-low">
             <tr>
-              <th className="px-4 py-3 text-xs font-bold uppercase text-on-surface-variant">#</th>
+              <th className="px-4 py-3 text-xs font-bold uppercase text-on-surface-variant">Sr No</th>
               <th className="px-4 py-3 text-xs font-bold uppercase text-on-surface-variant">Customer</th>
               <th className="px-4 py-3 text-xs font-bold uppercase text-on-surface-variant">Booked on</th>
               <th className="px-4 py-3 text-xs font-bold uppercase text-on-surface-variant">Start</th>
@@ -81,13 +94,13 @@ export default function BookingsList() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((b, i) => (
+            {pagedRows.map((b, i) => (
               <tr
                 key={b.id}
                 className={`border-b border-outline-variant transition hover:bg-surface-container-low/60 cursor-pointer ${i % 2 ? "bg-surface-container-low/20" : ""}`}
                 onClick={() => setDetail(b)}
               >
-                <td className="px-4 py-3 font-medium">{b.id}</td>
+                <td className="px-4 py-3 font-medium">{(safePage - 1) * PAGE_SIZE + i + 1}</td>
                 <td className="px-4 py-3 text-on-surface">{b.customer_name || `User #${b.customer_id}`}</td>
                 <td className="px-4 py-3 text-on-surface-variant">{new Date(b.created_at || b.start_time).toLocaleDateString()}</td>
                 <td className="px-4 py-3">{new Date(b.start_time).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</td>
@@ -106,12 +119,23 @@ export default function BookingsList() {
                 </td>
               </tr>
             ))}
-            {!rows.length && (
+            {!pagedRows.length && (
               <tr><td colSpan={8} className="px-4 py-8 text-center text-on-surface-variant">No bookings found.</td></tr>
             )}
           </tbody>
         </table>
       </div>
+      {sortedRows.length > PAGE_SIZE && (
+        <div className="mt-3 flex items-center justify-end gap-2">
+          <Button variant="secondary" className="px-3 py-1 text-xs" disabled={safePage <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+            Prev
+          </Button>
+          <span className="text-xs text-on-surface-variant">Page {safePage} of {totalPages}</span>
+          <Button variant="secondary" className="px-3 py-1 text-xs" disabled={safePage >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
+            Next
+          </Button>
+        </div>
+      )}
 
       <Modal open={!!detail} onClose={() => setDetail(null)} title={`Booking #${detail?.id}`}>
         {detail && (
