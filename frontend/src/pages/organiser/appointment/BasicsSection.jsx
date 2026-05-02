@@ -34,6 +34,11 @@ export default function BasicsSection({ form, setForm }) {
         <option value="weekly">Weekly</option>
         <option value="flexible">Flexible</option>
       </Select>
+      <Select label="Visibility" value={form.visibility} onChange={set("visibility")}>
+        <option value="public">Public</option>
+        <option value="unlisted">Unlisted</option>
+        <option value="private">Private</option>
+      </Select>
       <Select label="Assignment" value={form.assignment_mode} onChange={set("assignment_mode")}>
         <option value="manual">Manual</option>
         <option value="auto">Auto</option>

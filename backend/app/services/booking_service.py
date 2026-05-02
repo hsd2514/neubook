@@ -21,6 +21,8 @@ def create_booking(
     at = db.get(AppointmentType, appointment_type_id)
     if not at or not at.is_published:
         raise ValueError("Appointment not available")
+    if at.visibility == "private":
+        raise ValueError("Appointment not available")
 
     if at.appointment_kind == "resource" and resource_id is None:
         raise ValueError("Resource required")
