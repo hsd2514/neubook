@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     smtp_from_email: str | None = None
     smtp_from_name: str = "Neubook"
     smtp_use_tls: bool = True
+    smtp_test_default_to: str | None = None
     frontend_base_url: str = "http://localhost:5173"
 
     @property

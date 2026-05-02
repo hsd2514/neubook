@@ -5,6 +5,7 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy import select
 
 from app.deps import CurrentUser, DBSession, require_roles
+from app.config import settings
 from app.models.user import User
 from app.schemas.auth import UserPublic
 from app.services.email_service import send_email
@@ -155,7 +156,7 @@ def admin_test_email(
     data: AdminTestEmailIn,
     user: Annotated[User, Depends(require_roles("admin"))],
 ):
-    to_email = data.to_email or user.email
+    to_email = data.to_email or settings.smtp_test_default_to or user.email
     ok = send_email(
         to_email,
         data.subject or "Neubook test email",
