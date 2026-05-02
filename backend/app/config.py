@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 7
     cors_origins: str = "http://localhost:5173"
+    redis_url: str = "redis://localhost:6379/0"
+    slot_lock_ttl_seconds: int = 10
 
 
 settings = Settings()

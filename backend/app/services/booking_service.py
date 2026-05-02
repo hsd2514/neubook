@@ -7,6 +7,7 @@ from app.models.appointment_type import AppointmentType
 from app.models.booking import Booking
 from app.models.resource import Resource
 from app.services.availability import slot_exists_for_start
+from app.services.slot_lock import slot_lock
 
 
 def _normalize_utc(value: datetime) -> datetime:
@@ -45,49 +46,50 @@ def create_booking(
         raise ValueError("Payment required before booking confirmation")
 
     start_time = _normalize_utc(start_time)
-    if not slot_exists_for_start(db, appointment_type_id, resource_id, start_time, tz_name="UTC"):
-        raise ValueError("Selected time is not available")
+    with slot_lock(appointment_type_id, resource_id, start_time.isoformat()):
+        if not slot_exists_for_start(db, appointment_type_id, resource_id, start_time, tz_name="UTC"):
+            raise ValueError("Selected time is not available")
 
-    end_time = start_time + timedelta(minutes=at.duration_minutes)
+        end_time = start_time + timedelta(minutes=at.duration_minutes)
 
-    db.query(Booking).filter(
-        Booking.appointment_type_id == appointment_type_id,
-        Booking.resource_id == resource_id,
-        Booking.status.in_(["pending", "confirmed"]),
-        Booking.start_time < end_time,
-        Booking.end_time > start_time,
-    ).with_for_update().all()
-
-    used = db.execute(
-        select(func.coalesce(func.sum(Booking.capacity), 0)).where(
+        db.query(Booking).filter(
             Booking.appointment_type_id == appointment_type_id,
             Booking.resource_id == resource_id,
             Booking.status.in_(["pending", "confirmed"]),
             Booking.start_time < end_time,
             Booking.end_time > start_time,
+        ).with_for_update().all()
+
+        used = db.execute(
+            select(func.coalesce(func.sum(Booking.capacity), 0)).where(
+                Booking.appointment_type_id == appointment_type_id,
+                Booking.resource_id == resource_id,
+                Booking.status.in_(["pending", "confirmed"]),
+                Booking.start_time < end_time,
+                Booking.end_time > start_time,
+            )
+        ).scalar_one()
+
+        if int(used) + capacity > at.max_bookings_per_slot:
+            raise ValueError("Slot capacity exceeded")
+
+        status = "pending" if at.manual_confirmation else "confirmed"
+        booking = Booking(
+            customer_id=customer_id,
+            appointment_type_id=appointment_type_id,
+            resource_id=resource_id,
+            start_time=start_time,
+            end_time=end_time,
+            capacity=capacity,
+            status=status,
+            payment_status="paid" if at.advance_payment else "not_required",
+            payment_reference=payment_reference,
+            answers=answers,
         )
-    ).scalar_one()
-
-    if int(used) + capacity > at.max_bookings_per_slot:
-        raise ValueError("Slot capacity exceeded")
-
-    status = "pending" if at.manual_confirmation else "confirmed"
-    booking = Booking(
-        customer_id=customer_id,
-        appointment_type_id=appointment_type_id,
-        resource_id=resource_id,
-        start_time=start_time,
-        end_time=end_time,
-        capacity=capacity,
-        status=status,
-        payment_status="paid" if at.advance_payment else "not_required",
-        payment_reference=payment_reference,
-        answers=answers,
-    )
-    db.add(booking)
-    db.commit()
-    db.refresh(booking)
-    return booking
+        db.add(booking)
+        db.commit()
+        db.refresh(booking)
+        return booking
 
 
 def cancel_booking(db: Session, booking_id: int, user_id: int, role: str) -> Booking:
@@ -122,40 +124,41 @@ def reschedule_booking(db: Session, booking_id: int, user_id: int, new_start: da
         raise ValueError("Invalid appointment type")
 
     new_start = _normalize_utc(new_start)
-    if not slot_exists_for_start(db, b.appointment_type_id, b.resource_id, new_start, tz_name="UTC"):
-        raise ValueError("Selected time is not available")
+    with slot_lock(b.appointment_type_id, b.resource_id, new_start.isoformat()):
+        if not slot_exists_for_start(db, b.appointment_type_id, b.resource_id, new_start, tz_name="UTC"):
+            raise ValueError("Selected time is not available")
 
-    end_time = new_start + timedelta(minutes=at.duration_minutes)
+        end_time = new_start + timedelta(minutes=at.duration_minutes)
 
-    db.query(Booking).filter(
-        Booking.appointment_type_id == b.appointment_type_id,
-        Booking.resource_id == b.resource_id,
-        Booking.status.in_(["pending", "confirmed"]),
-        Booking.start_time < end_time,
-        Booking.end_time > new_start,
-    ).with_for_update().all()
-
-    used = db.execute(
-        select(func.coalesce(func.sum(Booking.capacity), 0)).where(
+        db.query(Booking).filter(
             Booking.appointment_type_id == b.appointment_type_id,
             Booking.resource_id == b.resource_id,
             Booking.status.in_(["pending", "confirmed"]),
             Booking.start_time < end_time,
             Booking.end_time > new_start,
-            Booking.id != b.id,
-        )
-    ).scalar_one()
+        ).with_for_update().all()
 
-    if int(used) + b.capacity > at.max_bookings_per_slot:
-        raise ValueError("Slot capacity exceeded")
+        used = db.execute(
+            select(func.coalesce(func.sum(Booking.capacity), 0)).where(
+                Booking.appointment_type_id == b.appointment_type_id,
+                Booking.resource_id == b.resource_id,
+                Booking.status.in_(["pending", "confirmed"]),
+                Booking.start_time < end_time,
+                Booking.end_time > new_start,
+                Booking.id != b.id,
+            )
+        ).scalar_one()
 
-    b.start_time = new_start
-    b.end_time = end_time
-    if at.manual_confirmation:
-        b.status = "pending"
-    db.commit()
-    db.refresh(b)
-    return b
+        if int(used) + b.capacity > at.max_bookings_per_slot:
+            raise ValueError("Slot capacity exceeded")
+
+        b.start_time = new_start
+        b.end_time = end_time
+        if at.manual_confirmation:
+            b.status = "pending"
+        db.commit()
+        db.refresh(b)
+        return b
 
 
 def organiser_confirm(db: Session, booking_id: int, organiser_id: int) -> Booking:
