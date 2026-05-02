@@ -15,6 +15,7 @@ from app.models.schedule import Schedule
 from app.models.blocked_slot import BlockedSlot
 from app.models.seat_block import SeatBlock
 from app.models.seat import Seat
+from app.models.booking import Booking
 from app.models.booking_seat import BookingSeat
 from app.schemas.appointment import (
     AppointmentTypeCreate,
@@ -482,8 +483,54 @@ def upsert_seats_bulk(
     if not data:
         raise HTTPException(status_code=400, detail="At least one seat is required")
 
+    seat_ids = db.execute(
+        select(Seat.id).where(Seat.appointment_type_id == appointment_id)
+    ).scalars().all()
+    if seat_ids:
+        db.query(BookingSeat).filter(BookingSeat.seat_id.in_(seat_ids)).delete(synchronize_session=False)
     db.query(Seat).filter(Seat.appointment_type_id == appointment_id).delete(synchronize_session=False)
     db.flush()
+
+    block_ids = set(
+        db.execute(select(SeatBlock.id).where(SeatBlock.appointment_type_id == appointment_id)).scalars().all()
+    )
+
+    created: list[Seat] = []
+    for item in data:
+        if item.block_id not in block_ids:
+            raise HTTPException(status_code=400, detail=f"Invalid block_id: {item.block_id}")
+        seat = Seat(
+            appointment_type_id=appointment_id,
+            block_id=item.block_id,
+            resource_id=item.resource_id,
+            label=item.label,
+            row_label=item.row_label,
+            col_number=item.col_number,
+            seat_type=item.seat_type,
+            status=item.status,
+            x=item.x,
+            y=item.y,
+        )
+        db.add(seat)
+        created.append(seat)
+    db.commit()
+    for seat in created:
+        db.refresh(seat)
+    return [SeatOut.model_validate(s) for s in created]
+
+
+@router.post("/mine/{appointment_id}/seats/append", response_model=list[SeatOut])
+def append_seats(
+    appointment_id: int,
+    data: list[SeatCreate],
+    db: DBSession,
+    user: Annotated[User, Depends(require_roles("organiser", "admin"))],
+):
+    at = db.get(AppointmentType, appointment_id)
+    if not at or at.organiser_id != user.id:
+        raise HTTPException(status_code=404, detail="Not found")
+    if not data:
+        raise HTTPException(status_code=400, detail="At least one seat is required")
 
     block_ids = set(
         db.execute(select(SeatBlock.id).where(SeatBlock.appointment_type_id == appointment_id)).scalars().all()
@@ -587,3 +634,84 @@ def availability(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return days
+
+
+@router.get("/{appointment_id}/taken-seats")
+def taken_seats(
+    appointment_id: int,
+    db: DBSession,
+    slot_start: str,
+    slot_end: str,
+):
+    from datetime import datetime as dt, timezone as tz
+
+    try:
+        start = dt.fromisoformat(slot_start).astimezone(tz.utc)
+        end = dt.fromisoformat(slot_end).astimezone(tz.utc)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Invalid datetime format")
+
+    from app.services.booking_status import ACTIVE_SLOT_STATUSES
+
+    rows = (
+        db.query(BookingSeat.seat_id)
+        .join(Booking, Booking.id == BookingSeat.booking_id)
+        .filter(
+            Booking.appointment_type_id == appointment_id,
+            Booking.status.in_(ACTIVE_SLOT_STATUSES),
+            Booking.start_time < end,
+            Booking.end_time > start,
+        )
+        .all()
+    )
+    return {"taken_seat_ids": [r[0] for r in rows]}
+
+
+# ── Seat hold / lock endpoints ──────────────────────────────────
+
+from pydantic import BaseModel as _BM
+
+
+class _SeatHoldIn(_BM):
+    slot_start: str
+    seat_ids: list[int]
+
+
+@router.post("/{appointment_id}/seats/hold")
+def hold_seats_endpoint(
+    appointment_id: int,
+    body: _SeatHoldIn,
+    user: Annotated[User, Depends(require_roles("customer", "organiser", "admin"))],
+):
+    from app.services.seat_hold import hold_seats
+
+    result = hold_seats(appointment_id, body.slot_start, body.seat_ids, user.id)
+    return result
+
+
+@router.post("/{appointment_id}/seats/release")
+def release_seats_endpoint(
+    appointment_id: int,
+    body: _SeatHoldIn,
+    user: Annotated[User, Depends(require_roles("customer", "organiser", "admin"))],
+):
+    from app.services.seat_hold import release_seats
+
+    count = release_seats(appointment_id, body.slot_start, body.seat_ids, user.id)
+    return {"released": count}
+
+
+@router.get("/{appointment_id}/seats/held")
+def held_seats_endpoint(
+    appointment_id: int,
+    slot_start: str,
+    db: DBSession,
+    user: Annotated[User, Depends(require_roles("customer", "organiser", "admin"))],
+):
+    all_seats = db.query(Seat.id).filter(Seat.appointment_type_id == appointment_id).all()
+    all_ids = [r[0] for r in all_seats]
+
+    from app.services.seat_hold import get_held_seat_ids
+
+    held = get_held_seat_ids(appointment_id, slot_start, all_ids, exclude_user_id=user.id)
+    return {"held_seat_ids": held}

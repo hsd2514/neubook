@@ -489,6 +489,7 @@ export default function BookingFlow() {
         <StepSeatMap
           at={at}
           resourceId={resourceId}
+          slots={slots}
           selectedSeatIds={selectedSeatIds}
           setSelectedSeatIds={setSelectedSeatIds}
           slots={slots}

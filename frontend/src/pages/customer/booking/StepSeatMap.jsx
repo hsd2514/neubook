@@ -1,55 +1,90 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "../../../components/ui/Card.jsx";
 import { Button } from "../../../components/ui/Button.jsx";
 import { api } from "../../../services/api.js";
 
-/**
- * StepSeatMap
- *
- * Props:
- *   at               – appointment type object (seats, seat_blocks)
- *   selectedSeatIds  – array of selected seat IDs
- *   setSelectedSeatIds – setter
- *   resourceId       – current resource filter (nullable)
- *   slots            – array of selected slot objects [{start, end}, …]
- *   onBack / onNext  – navigation callbacks
- */
+const HOLD_REFRESH_MS = 4 * 60 * 1000; // re-hold every 4 min (TTL is 5 min)
+const POLL_HELD_MS = 15_000; // check others' holds every 15s
+
 export default function StepSeatMap({ at, selectedSeatIds, setSelectedSeatIds, resourceId, slots, onBack, onNext }) {
-  const seats = (at?.seats || []).filter((s) => s.status === "active");
-  const filteredByResource = resourceId ? seats.filter((s) => s.resource_id === null || s.resource_id === resourceId) : seats;
+  const allSeats = (at?.seats || []).filter((s) => s.status === "active");
+  const filteredByResource = resourceId ? allSeats.filter((s) => s.resource_id === null || s.resource_id === resourceId) : allSeats;
   const blocks = at?.seat_blocks || [];
   const blocksById = Object.fromEntries(blocks.map((b) => [b.id, b]));
   const [activeBlockId, setActiveBlockId] = useState("all");
+  const [takenIds, setTakenIds] = useState(new Set());
+  const [heldByOthers, setHeldByOthers] = useState(new Set());
+  const [loadingTaken, setLoadingTaken] = useState(false);
+  const holdTimerRef = useRef(null);
+  const pollTimerRef = useRef(null);
 
-  // ── waitlist: seats already taken for the selected slot ───────────────────
-  const [takenSeatIds, setTakenSeatIds] = useState(new Set());
-  const [waitlistedSeatIds, setWaitlistedSeatIds] = useState(new Set()); // seats that have someone waiting
+  const slotStart = slots?.[0]?.start;
 
+  // Fetch permanently booked (taken) seats
   useEffect(() => {
     if (!at?.id || !slots?.length) return;
-
-    // For each slot, fetch the booking seats already taken so we can mark them
-    const startTime = slots[0]?.start;
-    if (!startTime) return;
-
-    const params = new URLSearchParams({
-      appointment_type_id: at.id,
-      start_time: startTime,
-      ...(resourceId ? { resource_id: resourceId } : {}),
+    setLoadingTaken(true);
+    const fetches = slots.map((s) => {
+      const params = new URLSearchParams({ slot_start: s.start, slot_end: s.end });
+      return api(`/api/appointments/${at.id}/taken-seats?${params}`).catch(() => ({ taken_seat_ids: [] }));
     });
-
-    // Fetch active bookings for the slot to get taken seat IDs
-    // We use the organiser/public availability — seats booked are reflected via BookingSeat
-    // We'll use a lightweight approach: call the slot-info endpoint for waitlist
-    api(`/api/waitlist/slot-info?${params}`)
-      .then((info) => {
-        // info.waiting_count tells us the total, but we need seat-level detail
-        // For now, just track global waitlist count per slot (seat-level is future work)
-        // The taken seats come from the backend's booking validation; we show them as unavailable
-        // We rely on the backend returning 409 when seats are taken
+    Promise.all(fetches)
+      .then((results) => {
+        const ids = new Set();
+        for (const r of results) for (const id of r.taken_seat_ids || []) ids.add(id);
+        setTakenIds(ids);
       })
-      .catch(() => {}); // non-critical
-  }, [at?.id, slots, resourceId]);
+      .finally(() => setLoadingTaken(false));
+  }, [at?.id, slots]);
+
+  // Poll for seats held by OTHER users
+  const fetchHeld = useCallback(() => {
+    if (!at?.id || !slotStart) return;
+    const params = new URLSearchParams({ slot_start: slotStart });
+    api(`/api/appointments/${at.id}/seats/held?${params}`)
+      .then((r) => setHeldByOthers(new Set(r.held_seat_ids || [])))
+      .catch(() => {});
+  }, [at?.id, slotStart]);
+
+  useEffect(() => {
+    fetchHeld();
+    pollTimerRef.current = setInterval(fetchHeld, POLL_HELD_MS);
+    return () => clearInterval(pollTimerRef.current);
+  }, [fetchHeld]);
+
+  // Hold selected seats on server, refresh before TTL expires
+  const holdSeats = useCallback(
+    (seatIds) => {
+      if (!at?.id || !slotStart || !seatIds.length) return;
+      api(`/api/appointments/${at.id}/seats/hold`, {
+        method: "POST",
+        body: JSON.stringify({ slot_start: slotStart, seat_ids: seatIds }),
+      }).catch(() => {});
+    },
+    [at?.id, slotStart],
+  );
+
+  useEffect(() => {
+    holdSeats(selectedSeatIds);
+    clearInterval(holdTimerRef.current);
+    if (selectedSeatIds.length) {
+      holdTimerRef.current = setInterval(() => holdSeats(selectedSeatIds), HOLD_REFRESH_MS);
+    }
+    return () => clearInterval(holdTimerRef.current);
+  }, [selectedSeatIds, holdSeats]);
+
+  // Release holds when leaving the page
+  useEffect(() => {
+    return () => {
+      if (selectedSeatIds.length && at?.id && slotStart) {
+        api(`/api/appointments/${at.id}/seats/release`, {
+          method: "POST",
+          body: JSON.stringify({ slot_start: slotStart, seat_ids: selectedSeatIds }),
+        }).catch(() => {});
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const filtered = useMemo(() => {
     if (activeBlockId === "all") return filteredByResource;
@@ -75,40 +110,46 @@ export default function StepSeatMap({ at, selectedSeatIds, setSelectedSeatIds, r
   }, [filtered]);
 
   function toggleSeat(id) {
-    if (takenSeatIds.has(id)) return; // can't toggle a taken seat
-    setSelectedSeatIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+    if (takenIds.has(id) || heldByOthers.has(id)) return;
+    setSelectedSeatIds((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      // Release deselected seats immediately
+      if (prev.includes(id)) {
+        api(`/api/appointments/${at.id}/seats/release`, {
+          method: "POST",
+          body: JSON.stringify({ slot_start: slotStart, seat_ids: [id] }),
+        }).catch(() => {});
+      }
+      return next;
+    });
   }
+
+  function handleBack() {
+    if (selectedSeatIds.length && at?.id && slotStart) {
+      api(`/api/appointments/${at.id}/seats/release`, {
+        method: "POST",
+        body: JSON.stringify({ slot_start: slotStart, seat_ids: selectedSeatIds }),
+      }).catch(() => {});
+    }
+    setSelectedSeatIds([]);
+    onBack();
+  }
+
+  const availableCount = filteredByResource.filter((s) => !takenIds.has(s.id) && !heldByOthers.has(s.id)).length;
+  const takenCount = filteredByResource.filter((s) => takenIds.has(s.id)).length;
+  const heldCount = filteredByResource.filter((s) => heldByOthers.has(s.id) && !takenIds.has(s.id)).length;
 
   return (
     <Card>
-      <h3 className="font-semibold text-on-surface">Pick seats</h3>
-      <p className="mt-1 text-sm text-on-surface-variant">Choose one or more seats from the map-like layout.</p>
+      <h3 className="font-semibold text-on-surface">Pick your spots</h3>
+      <p className="mt-1 text-sm text-on-surface-variant">
+        {availableCount} available
+        {takenCount > 0 ? ` · ${takenCount} taken` : ""}
+        {heldCount > 0 ? ` · ${heldCount} held` : ""}
+        {loadingTaken && " · checking availability…"}
+      </p>
 
-      {/* Color legend */}
-      <div className="mt-3 flex flex-wrap gap-3 text-xs">
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded-sm border border-outline-variant bg-surface-container-low" />
-          Available
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded-sm border border-primary-container bg-primary-container/10" />
-          Selected
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded-sm border border-[#f59e0b] bg-[#f59e0b]/15" />
-          Waitlisted
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded-sm border border-outline-variant/30 bg-surface-container-highest opacity-40" />
-          Taken
-        </span>
-      </div>
-
-      <div className="mt-4 rounded-lg border border-outline-variant bg-surface-container-low px-4 py-2 text-center text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
-        Screen / Stage
-      </div>
-
-      {/* Block filter tabs */}
+      {/* Section filter */}
       <div className="mt-4 flex flex-wrap gap-2">
         <button
           type="button"
@@ -119,7 +160,7 @@ export default function StepSeatMap({ at, selectedSeatIds, setSelectedSeatIds, r
               : "border-outline-variant text-on-surface-variant"
           }`}
         >
-          All blocks
+          All sections
         </button>
         {blocks.map((b) => (
           <button
@@ -145,39 +186,30 @@ export default function StepSeatMap({ at, selectedSeatIds, setSelectedSeatIds, r
             <div className="w-10 pt-2 text-xs font-bold uppercase text-on-surface-variant">{rowKey}</div>
             <div className="grid flex-1 grid-cols-3 gap-2 sm:grid-cols-5 md:grid-cols-8">
               {rowSeats.map((seat) => {
+                const taken = takenIds.has(seat.id);
+                const held = heldByOthers.has(seat.id) && !taken;
                 const selected = selectedSeatIds.includes(seat.id);
-                const taken = takenSeatIds.has(seat.id);
-                const waitlisted = !taken && waitlistedSeatIds.has(seat.id);
                 const block = blocksById[seat.block_id];
-
-                let className = "rounded-md border px-2 py-2 text-xs font-semibold transition ";
-                let style = {};
-
-                if (taken) {
-                  className += "border-outline-variant/30 bg-surface-container-highest opacity-40 cursor-not-allowed";
-                } else if (selected) {
-                  className += "border-primary-container bg-primary-container/10 text-primary-container shadow-sm";
-                } else if (waitlisted) {
-                  className += "border-[#f59e0b] bg-[#f59e0b]/15 text-[#92400e] cursor-pointer hover:bg-[#f59e0b]/25";
-                } else {
-                  className += "border-outline-variant bg-surface-container-low hover:border-primary-container cursor-pointer";
-                  if (block?.color) style = { borderColor: block.color };
-                }
-
+                const unavailable = taken || held;
                 return (
                   <button
                     key={seat.id}
                     type="button"
+                    disabled={unavailable}
                     onClick={() => toggleSeat(seat.id)}
-                    disabled={taken}
-                    title={taken ? "This seat is already booked" : waitlisted ? "Someone is waiting for this seat" : seat.label}
-                    className={className}
-                    style={style}
+                    className={`rounded-md border px-2 py-2 text-xs font-semibold transition ${
+                      taken
+                        ? "cursor-not-allowed border-outline-variant/50 bg-surface-container-highest/60 text-on-surface-variant/40 line-through"
+                        : held
+                          ? "cursor-not-allowed border-amber-400/60 bg-amber-50 text-amber-600/70"
+                          : selected
+                            ? "border-primary-container bg-primary-container/15 text-primary-container shadow-sm"
+                            : "border-outline-variant bg-surface-container-low hover:border-primary-container hover:bg-primary-container/5"
+                    }`}
+                    style={!unavailable && !selected && block?.color ? { borderColor: block.color } : undefined}
+                    title={taken ? "Already booked" : held ? "Held by another user" : seat.label}
                   >
-                    <span>{seat.label}</span>
-                    {waitlisted && (
-                      <span className="ml-1 text-[8px] font-bold text-[#f59e0b]">W</span>
-                    )}
+                    {taken ? "✕" : held ? "⏳" : seat.label}
                   </button>
                 );
               })}
@@ -186,22 +218,38 @@ export default function StepSeatMap({ at, selectedSeatIds, setSelectedSeatIds, r
         ))}
       </div>
 
-      {!filtered.length && <p className="mt-4 text-sm text-on-surface-variant">No active seats configured.</p>}
+      {!filtered.length && <p className="mt-4 text-sm text-on-surface-variant">No active spots configured.</p>}
 
-      {/* Block legend */}
-      <div className="mt-4 flex flex-wrap gap-2 text-xs">
+      {/* Legend */}
+      <div className="mt-4 flex flex-wrap gap-3 text-xs">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-3 w-3 rounded border border-outline-variant bg-surface-container-low" />
+          Available
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-3 w-3 rounded border border-primary-container bg-primary-container/15" />
+          Selected
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-3 w-3 rounded border border-amber-400/60 bg-amber-50" />
+          Held
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-3 w-3 rounded border border-outline-variant/50 bg-surface-container-highest/60" />
+          Taken
+        </span>
         {blocks.map((b) => (
-          <span key={`legend-${b.id}`} className="inline-flex items-center gap-1 rounded-full border border-outline-variant px-2 py-1 text-on-surface-variant">
-            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: b.color || "#999" }} />
+          <span key={`legend-${b.id}`} className="inline-flex items-center gap-1.5">
+            <span className="h-3 w-3 rounded-full" style={{ backgroundColor: b.color || "#999" }} />
             {b.name}
           </span>
         ))}
       </div>
 
       <div className="mt-5 flex gap-2">
-        <Button variant="secondary" onClick={onBack}>Back</Button>
+        <Button variant="secondary" onClick={handleBack}>Back</Button>
         <Button disabled={!selectedSeatIds.length} onClick={onNext}>
-          Continue with {selectedSeatIds.length} seat{selectedSeatIds.length !== 1 ? "s" : ""}
+          Continue with {selectedSeatIds.length} spot{selectedSeatIds.length !== 1 ? "s" : ""}
         </Button>
       </div>
     </Card>

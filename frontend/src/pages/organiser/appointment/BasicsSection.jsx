@@ -11,10 +11,8 @@ export default function BasicsSection({ form, setForm }) {
         : e.target.value,
     }));
 
-  const serviceAmountRupees = Number(form.service_amount_paisa || 0) / 100;
-  const setServiceAmountRupees = (e) => {
-    const rupees = Number(e.target.value || 0);
-    setForm((f) => ({ ...f, service_amount_paisa: Math.max(100, Math.round(rupees * 100)) }));
+  const setServiceAmount = (e) => {
+    setForm((f) => ({ ...f, service_amount: Number(e.target.value || 0) }));
   };
 
   return (
@@ -53,7 +51,7 @@ export default function BasicsSection({ form, setForm }) {
         <option value="capacity">Capacity</option>
         <option value="seat_map">Seat map</option>
       </Select>
-      <Input label="Service amount (INR)" type="number" min={1} value={serviceAmountRupees} onChange={setServiceAmountRupees} />
+      <Input label="Service amount (₹)" type="number" min={1} value={form.service_amount} onChange={setServiceAmount} />
     </div>
   );
 }

@@ -1,12 +1,12 @@
 export function Tabs({ tabs, active, onChange }) {
   return (
-    <div className="flex gap-0 border-b border-outline-variant">
+    <div className="flex gap-0 overflow-x-auto border-b border-outline-variant">
       {tabs.map((t) => (
         <button
           key={t.key}
           type="button"
           onClick={() => onChange(t.key)}
-          className={`relative px-4 py-2.5 text-sm font-medium transition-colors ${
+          className={`relative shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-medium transition-colors ${
             active === t.key
               ? "text-primary-container"
               : "text-on-surface-variant hover:text-on-surface"

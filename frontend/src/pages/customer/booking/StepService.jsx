@@ -4,8 +4,8 @@ import { Badge } from "../../../components/ui/Badge.jsx";
 import { Button } from "../../../components/ui/Button.jsx";
 
 export default function StepService({ at, onNext }) {
-  const amountPaisa = Number(at?.service_amount_paisa ?? 0);
-  const amountInr = amountPaisa > 0 ? (amountPaisa / 100).toFixed(2) : null;
+  const amountRupees = Number(at?.service_amount_paisa ?? 0) / 100;
+  const amountDisplay = amountRupees > 0 ? `₹${amountRupees.toLocaleString("en-IN")}` : null;
 
   return (
     <Card>
@@ -36,7 +36,7 @@ export default function StepService({ at, onNext }) {
         </div>
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
-        {amountInr && <Badge tone="teal">Price: INR {amountInr}</Badge>}
+        {amountDisplay && <Badge tone="teal">Price: {amountDisplay}</Badge>}
         {at.manage_capacity && <Badge tone="warning">Capacity management</Badge>}
         {at.advance_payment && <Badge tone="teal">Advance payment</Badge>}
         {at.manual_confirmation && <Badge tone="purple">Manual confirmation</Badge>}

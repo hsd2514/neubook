@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../../services/api.js";
-import { useToast } from "../../../context/ToastContext.jsx";
 
 const defaultForm = {
   name: "",
@@ -16,14 +15,13 @@ const defaultForm = {
   manual_confirmation: false,
   assignment_mode: "manual",
   booking_mode: "capacity",
-  service_amount_paisa: 100,
+  service_amount: 1,
   max_bookings_per_slot: 1,
 };
 
 export function useAppointment(id) {
   const isNew = !id || id === "new";
   const nav = useNavigate();
-  const { success, error } = useToast();
   const [form, setForm] = useState({ ...defaultForm });
   const [at, setAt] = useState(null);
   const [err, setErr] = useState("");
@@ -57,7 +55,7 @@ export function useAppointment(id) {
           manual_confirmation: found.manual_confirmation,
           assignment_mode: found.assignment_mode,
           booking_mode: found.booking_mode || "capacity",
-          service_amount_paisa: found.service_amount_paisa ?? 100,
+          service_amount: (found.service_amount_paisa ?? 100) / 100,
           max_bookings_per_slot: found.max_bookings_per_slot,
         });
       }
@@ -70,18 +68,17 @@ export function useAppointment(id) {
     if (e?.preventDefault) e.preventDefault();
     setErr("");
     try {
+      const { service_amount, ...rest } = form;
+      const payload = { ...rest, service_amount_paisa: Math.max(100, Math.round(Number(service_amount || 1) * 100)) };
       if (isNew) {
-        const created = await api("/api/appointments/mine", { method: "POST", body: JSON.stringify(form) });
-        success("Appointment created successfully");
+        const created = await api("/api/appointments/mine", { method: "POST", body: JSON.stringify(payload) });
         nav(`/app/appointments/${created.id}`);
       } else {
-        await api(`/api/appointments/mine/${id}`, { method: "PATCH", body: JSON.stringify(form) });
+        await api(`/api/appointments/mine/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
         await refresh();
-        success("Changes saved successfully");
       }
     } catch (ex) {
       setErr(ex.message);
-      error(ex.message || "Failed to save changes");
     }
   }
 
