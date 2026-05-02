@@ -73,6 +73,7 @@ def _serialize_type(at: AppointmentType) -> AppointmentTypeOut:
         advance_payment=at.advance_payment,
         manual_confirmation=at.manual_confirmation,
         assignment_mode=at.assignment_mode,
+        service_amount_paisa=at.service_amount_paisa,
         max_bookings_per_slot=at.max_bookings_per_slot,
         share_link=at.share_link,
         resources=[ResourceOut.model_validate(r) for r in (at.resources or [])],
@@ -121,7 +122,7 @@ def get_by_share(share_link: str, db: DBSession):
         .unique()
         .scalar_one_or_none()
     )
-    if not at or not at.is_published:
+    if not at:
         raise HTTPException(status_code=404, detail="Not found")
     if at.visibility == "private":
         raise HTTPException(status_code=404, detail="Not found")
@@ -169,6 +170,7 @@ def create_mine(
         advance_payment=d["advance_payment"],
         manual_confirmation=d["manual_confirmation"],
         assignment_mode=d["assignment_mode"],
+        service_amount_paisa=d["service_amount_paisa"],
         max_bookings_per_slot=d["max_bookings_per_slot"],
     )
     db.add(at)

@@ -4,9 +4,11 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.models.auth_tokens import EmailOTP, PasswordResetToken
 from app.models.user import User
 from app.schemas.auth import SignupRequest, UserPublic
+from app.services.email_service import send_email
 from app.utils.jwt import create_access_token, create_refresh_token
 from app.utils.password import hash_password, verify_password
 
@@ -47,8 +49,18 @@ def signup_request(db: Session, data: SignupRequest) -> None:
         )
     )
     db.commit()
-    # Dev: OTP logged; in production send email
-    print(f"[Neubook] OTP for {data.email}: {code}")
+    sent = send_email(
+        data.email,
+        "Your Neubook verification code",
+        (
+            f"Hi {data.full_name},\n\n"
+            f"Your Neubook verification code is: {code}\n"
+            "This code expires in 15 minutes.\n\n"
+            "If you did not request this, you can ignore this email."
+        ),
+    )
+    if not sent:
+        print(f"[Neubook] OTP for {data.email}: {code}")
 
 
 def verify_otp_and_activate(db: Session, email: str, code: str):
@@ -107,7 +119,20 @@ def forgot_password(db: Session, email: str) -> str | None:
     expires = datetime.now(timezone.utc) + timedelta(hours=1)
     db.add(PasswordResetToken(user_id=user.id, token=token, expires_at=expires, consumed=False))
     db.commit()
-    print(f"[Neubook] Password reset token for {email}: {token}")
+    reset_link = f"{settings.frontend_base_url.rstrip('/')}/forgot-password?token={token}"
+    sent = send_email(
+        email,
+        "Reset your Neubook password",
+        (
+            f"Hi {user.full_name},\n\n"
+            "We received a password reset request for your Neubook account.\n"
+            f"Reset link: {reset_link}\n\n"
+            "This link expires in 1 hour.\n"
+            "If you did not request this, you can ignore this email."
+        ),
+    )
+    if not sent:
+        print(f"[Neubook] Password reset token for {email}: {token}")
     return token
 
 

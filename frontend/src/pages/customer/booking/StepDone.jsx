@@ -1,8 +1,9 @@
 import { Link } from "react-router-dom";
-import { CalendarCheck, Clock, MapPin, Users } from "lucide-react";
+import { CalendarCheck, Clock, MapPin, Users, ExternalLink } from "lucide-react";
 import { Card } from "../../../components/ui/Card.jsx";
 import { Badge } from "../../../components/ui/Badge.jsx";
 import { Button } from "../../../components/ui/Button.jsx";
+import { buildGoogleCalendarLink } from "../../../utils/calendarLink.js";
 
 function BookingSummary({ booking, at }) {
   const start = new Date(booking.start_time);
@@ -73,7 +74,23 @@ export default function StepDone({ booking, bookings, at }) {
         <BookingSummary key={b.id || b.start_time} booking={b} at={at} />
       ))}
 
-      <div className="mt-6 flex justify-center gap-3">
+      <div className="mt-6 flex flex-wrap justify-center gap-3">
+        <a
+          href={buildGoogleCalendarLink({
+            title: at?.name || "Appointment",
+            description: `Booking #${booking.id}`,
+            location: at?.resources?.find((r) => r.id === booking.resource_id)?.name,
+            startTime: booking.start_time,
+            endTime: booking.end_time,
+          })}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <Button variant="secondary">
+            <ExternalLink size={16} className="mr-1.5" />
+            Add to Google Calendar
+          </Button>
+        </a>
         <Link to="/profile"><Button variant="secondary">My appointments</Button></Link>
         <Link to="/"><Button>Book another</Button></Link>
       </div>

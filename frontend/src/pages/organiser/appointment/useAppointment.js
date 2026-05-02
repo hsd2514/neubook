@@ -14,6 +14,7 @@ const defaultForm = {
   advance_payment: false,
   manual_confirmation: false,
   assignment_mode: "manual",
+  service_amount_paisa: 100,
   max_bookings_per_slot: 1,
 };
 
@@ -61,6 +62,7 @@ export function useAppointment(id) {
           advance_payment: found.advance_payment,
           manual_confirmation: found.manual_confirmation,
           assignment_mode: found.assignment_mode,
+          service_amount_paisa: found.service_amount_paisa ?? 100,
           max_bookings_per_slot: found.max_bookings_per_slot,
         });
       }

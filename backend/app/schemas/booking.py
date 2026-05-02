@@ -44,3 +44,33 @@ class BookingOut(BaseModel):
 
 class BookingReschedule(BaseModel):
     start_time: datetime
+
+
+class PhonePePaymentInitiateIn(BaseModel):
+    amount_paisa: int = Field(ge=100)
+    redirect_url: str
+    merchant_order_id: str | None = None
+
+
+class PhonePePaymentInitiateOut(BaseModel):
+    merchant_order_id: str
+    state: str
+    redirect_url: str
+    order_id: str
+    expire_at: int | None = None
+
+
+class PhonePePaymentStatusIn(BaseModel):
+    merchant_order_id: str
+
+
+class PhonePePaymentStatusOut(BaseModel):
+    state: str | None = None
+    amount: int | None = None
+    merchant_order_id: str | None = None
+    raw: dict
+
+
+class PhonePeCallbackValidateIn(BaseModel):
+    authorization_header: str
+    callback_body: str

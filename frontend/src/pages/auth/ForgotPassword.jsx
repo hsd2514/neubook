@@ -1,15 +1,16 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Button } from "../../components/ui/Button.jsx";
 import { Input } from "../../components/ui/Input.jsx";
 import { Card } from "../../components/ui/Card.jsx";
 import { api } from "../../services/api.js";
 
 export default function ForgotPassword() {
+  const [searchParams] = useSearchParams();
   const [email, setEmail] = useState("");
-  const [token, setToken] = useState("");
+  const [token, setToken] = useState(searchParams.get("token") || "");
   const [np, setNp] = useState("");
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(searchParams.get("token") ? 2 : 1);
   const [msg, setMsg] = useState("");
 
   async function requestReset(e) {
@@ -17,7 +18,7 @@ export default function ForgotPassword() {
     setMsg("");
     try {
       await api("/api/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) });
-      setMsg("If the account exists, check server console for reset token (dev).");
+      setMsg("If the account exists, check your email for the reset link.");
       setStep(2);
     } catch (ex) { setMsg(ex.message); }
   }
