@@ -2,8 +2,9 @@ import { Minus, Plus, Users } from "lucide-react";
 import { Card } from "../../../components/ui/Card.jsx";
 import { Button } from "../../../components/ui/Button.jsx";
 
-export default function StepCapacity({ slot, capacity, setCapacity, onBack, onNext }) {
-  const max = slot?.available_capacity || 1;
+export default function StepCapacity({ slots, capacity, setCapacity, onBack, onNext }) {
+  const slotList = slots || [];
+  const max = slotList.length ? Math.min(...slotList.map((s) => s.available_capacity || 1)) : 1;
 
   return (
     <Card>

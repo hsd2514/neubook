@@ -124,6 +124,7 @@ export default function AppointmentForm() {
               appointmentId={id}
               slotSchedule={at?.slot_schedule}
               schedules={at?.schedules}
+              blockedSlots={at?.blocked_slots}
               resources={at?.resources}
               onRefresh={refresh}
             />

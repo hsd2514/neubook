@@ -12,10 +12,13 @@ from app.models.user import User
 from app.models.question import Question
 from app.models.resource import Resource
 from app.models.schedule import Schedule
+from app.models.blocked_slot import BlockedSlot
 from app.schemas.appointment import (
     AppointmentTypeCreate,
     AppointmentTypeOut,
     AppointmentTypeUpdate,
+    BlockedSlotCreate,
+    BlockedSlotOut,
     QuestionCreate,
     QuestionOut,
     ResourceCreate,
@@ -41,6 +44,20 @@ def _serialize_schedule(s: Schedule) -> ScheduleOut:
     )
 
 
+def _serialize_blocked_slot(b: BlockedSlot) -> BlockedSlotOut:
+    return BlockedSlotOut(
+        id=b.id,
+        appointment_type_id=b.appointment_type_id,
+        block_type=b.block_type,
+        resource_id=b.resource_id,
+        start_date=b.start_date.isoformat(),
+        end_date=b.end_date.isoformat(),
+        day_of_week=b.day_of_week,
+        start_time=b.start_time.strftime("%H:%M") if b.start_time else None,
+        end_time=b.end_time.strftime("%H:%M") if b.end_time else None,
+    )
+
+
 def _serialize_type(at: AppointmentType) -> AppointmentTypeOut:
     return AppointmentTypeOut(
         id=at.id,
@@ -60,6 +77,7 @@ def _serialize_type(at: AppointmentType) -> AppointmentTypeOut:
         share_link=at.share_link,
         resources=[ResourceOut.model_validate(r) for r in (at.resources or [])],
         schedules=[_serialize_schedule(s) for s in (at.schedules or [])],
+        blocked_slots=[_serialize_blocked_slot(b) for b in (at.blocked_slots or [])],
         questions=[QuestionOut.model_validate(q) for q in (at.questions or [])],
     )
 
@@ -72,6 +90,7 @@ def list_public(db: DBSession):
             .options(
                 joinedload(AppointmentType.resources),
                 joinedload(AppointmentType.schedules),
+                joinedload(AppointmentType.blocked_slots),
                 joinedload(AppointmentType.questions),
             )
             .where(
@@ -94,6 +113,7 @@ def get_by_share(share_link: str, db: DBSession):
             .options(
                 joinedload(AppointmentType.resources),
                 joinedload(AppointmentType.schedules),
+                joinedload(AppointmentType.blocked_slots),
                 joinedload(AppointmentType.questions),
             )
             .where(AppointmentType.share_link == share_link)
@@ -116,6 +136,7 @@ def list_mine(db: DBSession, user: Annotated[User, Depends(require_roles("organi
             .options(
                 joinedload(AppointmentType.resources),
                 joinedload(AppointmentType.schedules),
+                joinedload(AppointmentType.blocked_slots),
                 joinedload(AppointmentType.questions),
             )
             .where(AppointmentType.organiser_id == user.id)
@@ -159,6 +180,7 @@ def create_mine(
             .options(
                 joinedload(AppointmentType.resources),
                 joinedload(AppointmentType.schedules),
+                joinedload(AppointmentType.blocked_slots),
                 joinedload(AppointmentType.questions),
             )
             .where(AppointmentType.id == at.id)
@@ -188,6 +210,7 @@ def update_mine(
             .options(
                 joinedload(AppointmentType.resources),
                 joinedload(AppointmentType.schedules),
+                joinedload(AppointmentType.blocked_slots),
                 joinedload(AppointmentType.questions),
             )
             .where(AppointmentType.id == at.id)
@@ -283,6 +306,79 @@ def delete_schedule(
     if not s or s.appointment_type_id != appointment_id:
         raise HTTPException(status_code=404, detail="Not found")
     db.delete(s)
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/mine/{appointment_id}/blocked-slots/bulk", response_model=list[BlockedSlotOut])
+def add_blocked_slots_bulk(
+    appointment_id: int,
+    data: list[BlockedSlotCreate],
+    db: DBSession,
+    user: Annotated[User, Depends(require_roles("organiser", "admin"))],
+):
+    at = db.get(AppointmentType, appointment_id)
+    if not at or at.organiser_id != user.id:
+        raise HTTPException(status_code=404, detail="Not found")
+    if not data:
+        raise HTTPException(status_code=400, detail="At least one blocked slot is required")
+
+    created: list[BlockedSlot] = []
+    for item in data:
+        try:
+            start_date = date.fromisoformat(item.start_date)
+            end_date = date.fromisoformat(item.end_date)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date format")
+        if end_date < start_date:
+            raise HTTPException(status_code=400, detail="end_date must be on or after start_date")
+
+        start_time = None
+        end_time = None
+        if item.start_time and item.end_time:
+            try:
+                sh, sm = item.start_time.split(":")
+                eh, em = item.end_time.split(":")
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid time format")
+            start_time = time(int(sh), int(sm))
+            end_time = time(int(eh), int(em))
+            if start_time >= end_time:
+                raise HTTPException(status_code=400, detail="end_time must be after start_time")
+
+        block = BlockedSlot(
+            appointment_type_id=appointment_id,
+            resource_id=item.resource_id,
+            block_type=item.block_type,
+            start_date=start_date,
+            end_date=end_date,
+            day_of_week=item.day_of_week,
+            start_time=start_time,
+            end_time=end_time,
+        )
+        db.add(block)
+        created.append(block)
+
+    db.commit()
+    for block in created:
+        db.refresh(block)
+    return [_serialize_blocked_slot(b) for b in created]
+
+
+@router.delete("/mine/{appointment_id}/blocked-slots/{blocked_slot_id}")
+def delete_blocked_slot(
+    appointment_id: int,
+    blocked_slot_id: int,
+    db: DBSession,
+    user: Annotated[User, Depends(require_roles("organiser", "admin"))],
+):
+    at = db.get(AppointmentType, appointment_id)
+    if not at or at.organiser_id != user.id:
+        raise HTTPException(status_code=404, detail="Not found")
+    blocked = db.get(BlockedSlot, blocked_slot_id)
+    if not blocked or blocked.appointment_type_id != appointment_id:
+        raise HTTPException(status_code=404, detail="Not found")
+    db.delete(blocked)
     db.commit()
     return {"ok": True}
 

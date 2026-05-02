@@ -34,5 +34,6 @@ class AppointmentType(Base):
     organiser = relationship("User", back_populates="appointment_types")
     resources = relationship("Resource", back_populates="appointment_type", cascade="all, delete-orphan")
     schedules = relationship("Schedule", back_populates="appointment_type", cascade="all, delete-orphan")
+    blocked_slots = relationship("BlockedSlot", back_populates="appointment_type", cascade="all, delete-orphan")
     questions = relationship("Question", back_populates="appointment_type", cascade="all, delete-orphan")
     bookings = relationship("Booking", back_populates="appointment_type")
