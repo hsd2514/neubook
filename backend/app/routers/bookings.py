@@ -54,6 +54,7 @@ def create_booking_route(
             data.answers,
             data.payment_confirmed,
             data.payment_reference,
+            data.share_token,
         )
     except ValueError as e:
         if idempotency_key is not None:

@@ -18,9 +18,10 @@ const STEPS = ["Service", "Resource", "Date", "Slot", "Capacity", "Questions", "
 const isAutoMode = (at) => at?.appointment_kind === "resource" && at?.assignment_mode === "auto";
 
 export default function BookingFlow() {
-  const { id, shareLink } = useParams();
+  const { id, token } = useParams();
   const { user } = useAuth();
   const [at, setAt] = useState(null);
+  const [notFound, setNotFound] = useState(false);
   const [step, setStep] = useState(0);
   const [resourceId, setResourceId] = useState(null);
   const [date, setDate] = useState("");
@@ -34,20 +35,20 @@ export default function BookingFlow() {
   const [err, setErr] = useState("");
 
   useEffect(() => {
-    if (id) {
+    if (token) {
+      api(`/api/appointments/by-share/${encodeURIComponent(token)}`)
+        .then((data) => { setAt(data); setNotFound(false); })
+        .catch(() => { setAt(null); setNotFound(true); });
+    } else {
       api("/api/appointments/public")
-        .then((rows) => setAt(rows.find((x) => String(x.id) === String(id)) || null))
-        .catch(() => setAt(null));
-      return;
+        .then((rows) => {
+          const found = rows.find((x) => String(x.id) === String(id)) || null;
+          setAt(found);
+          setNotFound(!found);
+        })
+        .catch(() => { setAt(null); setNotFound(true); });
     }
-    if (!shareLink) {
-      setAt(null);
-      return;
-    }
-    api(`/api/appointments/by-share/${shareLink}`)
-      .then(setAt)
-      .catch(() => setAt(null));
-  }, [id, shareLink]);
+  }, [id, token]);
 
   const fromTo = useMemo(() => {
     if (!date) return null;
@@ -84,19 +85,27 @@ export default function BookingFlow() {
     setErr("");
     try {
       const body = {
-        appointment_type_id: Number(at.id),
+        appointment_type_id: at.id,
         resource_id: at.appointment_kind === "resource" && !isAutoMode(at) ? resourceId : null,
         start_time: slot.start,
         capacity: at.manage_capacity ? capacity : 1,
         answers: Object.keys(answers).length ? answers : null,
         payment_confirmed: at.advance_payment ? paymentConfirmed : false,
         payment_reference: at.advance_payment ? paymentReference || null : null,
+        ...(token ? { share_token: token } : {}),
       };
       setBooking(await api("/api/bookings", { method: "POST", body: JSON.stringify(body) }));
       setStep(7);
     } catch (e) { setErr(e.message); }
   }
 
+  if (notFound) return (
+    <Card className="mx-auto max-w-md text-center">
+      <p className="mb-2 text-lg font-semibold text-error">Appointment not found</p>
+      <p className="mb-4 text-sm text-on-surface-variant">{token ? "This share link is invalid or has expired." : "The appointment you're looking for doesn't exist or is no longer available."}</p>
+      <Link to="/"><Button>Back to Home</Button></Link>
+    </Card>
+  );
   if (!at) return <p className="p-8 text-center text-on-surface-variant">Loading… <Link to="/" className="text-primary-container hover:underline">Home</Link></p>;
   if (!user) return <Card className="mx-auto max-w-md"><p className="mb-4">Please sign in to book.</p><Link to="/login"><Button>Sign in</Button></Link></Card>;
   if (user.role !== "customer" && user.role !== "admin") return <Card className="mx-auto max-w-md"><p>Booking is for customers. <Link to="/app" className="text-primary-container hover:underline">Console</Link></p></Card>;

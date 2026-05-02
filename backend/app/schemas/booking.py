@@ -22,6 +22,7 @@ class BookingCreate(BaseModel):
     answers: dict | list | None = None
     payment_confirmed: bool = False
     payment_reference: str | None = None
+    share_token: str | None = None
 
 
 class BookingOut(BaseModel):

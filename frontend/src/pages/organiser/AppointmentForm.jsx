@@ -27,6 +27,7 @@ export default function AppointmentForm() {
   const { isNew, form, setForm, at, setAt: refresh, err, saveBase } = useAppointment(id);
   const [tab, setTab] = useState("basics");
   const previewHref = !isNew && at?.share_link && form.visibility === "unlisted" ? `/book/share/${at.share_link}` : `/book/${id}`;
+  const [copied, setCopied] = useState(false);
 
   if (!isNew && !at) return <p className="p-8 text-on-surface-variant">Loading…</p>;
 
@@ -38,6 +39,18 @@ export default function AppointmentForm() {
         body: JSON.stringify({ is_published: !form.is_published }),
       });
       refresh();
+    }
+  }
+
+  async function copyShareLink() {
+    if (!at?.share_link) return;
+    const link = `${window.location.origin}/book/share/${encodeURIComponent(at.share_link)}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setCopied(false);
     }
   }
 
@@ -55,7 +68,11 @@ export default function AppointmentForm() {
               <div className="flex items-center gap-2 mt-0.5">
                 <Badge tone={form.is_published ? "success" : "default"}>{form.is_published ? "Published" : "Draft"}</Badge>
                 <Badge tone="teal">{(form.visibility || "public").toUpperCase()}</Badge>
-                {at.share_link && <code className="text-xs text-on-surface-variant bg-surface-container-high rounded px-1.5 py-0.5">{at.share_link}</code>}
+                {at.share_link && (
+                  <Button variant="ghost" className="h-7 px-2 text-xs" onClick={copyShareLink}>
+                    {copied ? "Copied" : "Copy share link"}
+                  </Button>
+                )}
               </div>
             )}
           </div>
