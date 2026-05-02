@@ -20,6 +20,7 @@ from app.models.schedule import Schedule
 from app.models.seat import Seat
 from app.models.seat_block import SeatBlock
 from app.models.user import User
+from app.models.waitlist import WaitlistEntry
 from app.utils.password import hash_password
 
 Base.metadata.create_all(bind=engine)
@@ -158,6 +159,77 @@ def _upsert_appointments(db, organiser: User):
                 {"label": "Need accessibility support?", "field_type": "checkbox", "is_required": False, "sort_order": 1},
             ],
         },
+        {
+            "name": "Flash Sale Coaching (Waitlist Demo)",
+            "description": "Intentionally high-demand slot to demonstrate waitlist join and queue position.",
+            "duration_minutes": 30,
+            "appointment_kind": "user",
+            "slot_schedule": "weekly",
+            "is_published": True,
+            "manage_capacity": True,
+            "advance_payment": False,
+            "manual_confirmation": False,
+            "assignment_mode": "manual",
+            "booking_mode": "capacity",
+            "service_amount_paisa": 99000,
+            "max_bookings_per_slot": 1,
+            "share_link": "waitlist-demo",
+            "resources": [],
+            "schedules": [
+                {"day_of_week": 2, "start_time": time(11, 0), "end_time": time(13, 0)},
+            ],
+            "questions": [
+                {"label": "Preferred focus area", "field_type": "text", "is_required": True, "sort_order": 1},
+            ],
+        },
+        {
+            "name": "Founder AMA (Unlisted Demo)",
+            "description": "Link-only booking page to demo unlisted visibility.",
+            "duration_minutes": 40,
+            "appointment_kind": "user",
+            "slot_schedule": "weekly",
+            "visibility": "unlisted",
+            "is_published": True,
+            "manage_capacity": False,
+            "advance_payment": False,
+            "manual_confirmation": False,
+            "assignment_mode": "manual",
+            "booking_mode": "capacity",
+            "service_amount_paisa": 120000,
+            "max_bookings_per_slot": 2,
+            "share_link": "unlisted-demo",
+            "resources": [],
+            "schedules": [
+                {"day_of_week": 6, "start_time": time(15, 0), "end_time": time(18, 0)},
+            ],
+            "questions": [
+                {"label": "Where did you hear about this?", "field_type": "text", "is_required": False, "sort_order": 1},
+            ],
+        },
+        {
+            "name": "Internal Interview Loop (Private Demo)",
+            "description": "Private appointment type should not appear in public listing.",
+            "duration_minutes": 45,
+            "appointment_kind": "user",
+            "slot_schedule": "weekly",
+            "visibility": "private",
+            "is_published": True,
+            "manage_capacity": False,
+            "advance_payment": False,
+            "manual_confirmation": True,
+            "assignment_mode": "manual",
+            "booking_mode": "capacity",
+            "service_amount_paisa": 0,
+            "max_bookings_per_slot": 1,
+            "share_link": "private-demo",
+            "resources": [],
+            "schedules": [
+                {"day_of_week": 1, "start_time": time(10, 0), "end_time": time(12, 0)},
+            ],
+            "questions": [
+                {"label": "Interview panel notes", "field_type": "text", "is_required": True, "sort_order": 1},
+            ],
+        },
     ]
 
     created = []
@@ -282,6 +354,7 @@ def _upsert_appointments(db, organiser: User):
 def _seed_bookings(db, appointments: list[AppointmentType], customer: User, customer2: User):
     for appt in appointments:
         db.query(Booking).filter(Booking.appointment_type_id == appt.id).delete(synchronize_session=False)
+        db.query(WaitlistEntry).filter(WaitlistEntry.appointment_type_id == appt.id).delete(synchronize_session=False)
     db.flush()
 
     now = datetime.now(timezone.utc).replace(second=0, microsecond=0)
@@ -296,20 +369,29 @@ def _seed_bookings(db, appointments: list[AppointmentType], customer: User, cust
             resource_id = first_resource.id if first_resource else None
 
         # upcoming booking
-        db.add(
-            Booking(
-                customer_id=customer.id,
-                appointment_type_id=appt.id,
-                resource_id=resource_id,
-                start_time=future_1,
-                end_time=future_1 + timedelta(minutes=appt.duration_minutes),
-                capacity=1,
-                status="pending" if appt.manual_confirmation else "confirmed",
-                payment_status="paid" if appt.advance_payment else "not_required",
-                payment_reference="seed_txn_1001" if appt.advance_payment else None,
-                answers={"seed": True},
-            )
+        booking_1 = Booking(
+            customer_id=customer.id,
+            appointment_type_id=appt.id,
+            resource_id=resource_id,
+            start_time=future_1,
+            end_time=future_1 + timedelta(minutes=appt.duration_minutes),
+            capacity=1,
+            status="pending" if appt.manual_confirmation else "confirmed",
+            payment_status="paid" if appt.advance_payment else "not_required",
+            payment_reference="seed_txn_1001" if appt.advance_payment else None,
+            answers={"seed": True},
         )
+        db.add(booking_1)
+        db.flush()
+
+        if appt.booking_mode == "seat_map":
+            demo_seat = (
+                db.execute(select(Seat).where(Seat.appointment_type_id == appt.id).order_by(Seat.id.asc()))
+                .scalars()
+                .first()
+            )
+            if demo_seat:
+                db.add(BookingSeat(booking_id=booking_1.id, seat_id=demo_seat.id))
         # another booking for utilization
         db.add(
             Booking(
@@ -340,6 +422,20 @@ def _seed_bookings(db, appointments: list[AppointmentType], customer: User, cust
                 answers={"seed": True},
             )
         )
+
+        if appt.name == "Flash Sale Coaching (Waitlist Demo)":
+            db.add(
+                WaitlistEntry(
+                    customer_id=customer2.id,
+                    appointment_type_id=appt.id,
+                    resource_id=None,
+                    start_time=future_1,
+                    seat_ids=None,
+                    answers={"seed": True, "reason": "demo waitlist"},
+                    position=1,
+                    status="waiting",
+                )
+            )
 
 
 def seed():
@@ -377,6 +473,12 @@ def seed():
         print("\nDemo services:")
         for appt in appointments:
             print(f"  - {appt.name} (published={appt.is_published}, advance_payment={appt.advance_payment})")
+        print("\nCustomer demo checklist:")
+        print("  1) Payment + manual confirmation: Dental care")
+        print("  2) Seat-map booking: Cinema premiere seating")
+        print("  3) Waitlist flow (full slot): Flash Sale Coaching (Waitlist Demo)")
+        print("  4) Unlisted link-only flow: /book/share/unlisted-demo")
+        print("  5) Private visibility check: Internal Interview Loop (Private Demo) should NOT appear publicly")
         print()
     finally:
         db.close()
