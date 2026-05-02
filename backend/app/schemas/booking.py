@@ -29,8 +29,11 @@ class BookingCreate(BaseModel):
 class BookingOut(BaseModel):
     id: int
     customer_id: int
+    customer_name: str | None = None
     appointment_type_id: int
+    appointment_type_name: str | None = None
     resource_id: int | None
+    resource_name: str | None = None
     start_time: datetime
     end_time: datetime
     capacity: int
