@@ -155,6 +155,10 @@ export default function BookingFlow() {
     setErr("");
     setPaymentLoading(true);
     try {
+      const amountPaisa = Number(at?.service_amount_paisa ?? 0);
+      if (!Number.isFinite(amountPaisa) || amountPaisa < 100) {
+        throw new Error("Service amount is not configured correctly for this appointment.");
+      }
       const orderId = `nb_${at.id}_${Date.now()}`;
       window.sessionStorage.setItem(
         paymentDraftKey,
@@ -173,8 +177,7 @@ export default function BookingFlow() {
       const response = await api("/api/bookings/payments/phonepe/initiate", {
         method: "POST",
         body: JSON.stringify({
-          // TODO: replace with real appointment pricing once price model is introduced.
-          amount_paisa: 100,
+          amount_paisa: amountPaisa,
           redirect_url: redirectUrl,
           merchant_order_id: orderId,
         }),

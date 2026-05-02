@@ -56,6 +56,7 @@ def _serialize_type(at: AppointmentType) -> AppointmentTypeOut:
         advance_payment=at.advance_payment,
         manual_confirmation=at.manual_confirmation,
         assignment_mode=at.assignment_mode,
+        service_amount_paisa=at.service_amount_paisa,
         max_bookings_per_slot=at.max_bookings_per_slot,
         share_link=at.share_link,
         resources=[ResourceOut.model_validate(r) for r in (at.resources or [])],
@@ -148,6 +149,7 @@ def create_mine(
         advance_payment=d["advance_payment"],
         manual_confirmation=d["manual_confirmation"],
         assignment_mode=d["assignment_mode"],
+        service_amount_paisa=d["service_amount_paisa"],
         max_bookings_per_slot=d["max_bookings_per_slot"],
     )
     db.add(at)

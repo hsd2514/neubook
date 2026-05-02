@@ -28,6 +28,7 @@ class AppointmentType(Base):
     assignment_mode: Mapped[str] = mapped_column(
         String(32), nullable=False, default="manual"
     )  # auto | manual
+    service_amount_paisa: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
     max_bookings_per_slot: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     share_link: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True, index=True)
 

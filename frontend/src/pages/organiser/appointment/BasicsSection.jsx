@@ -26,6 +26,7 @@ export default function BasicsSection({ form, setForm }) {
         />
       </div>
       <Input label="Duration (minutes)" type="number" min={5} value={form.duration_minutes} onChange={set("duration_minutes")} />
+      <Input label="Service amount (paise)" type="number" min={100} step={1} value={form.service_amount_paisa} onChange={set("service_amount_paisa")} />
       <Select label="Appointment kind" value={form.appointment_kind} onChange={set("appointment_kind")}>
         <option value="resource">Resource</option>
         <option value="user">User</option>
