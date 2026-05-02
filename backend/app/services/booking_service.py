@@ -49,7 +49,6 @@ def _validate_required_questions(db: Session, appointment_type_id: int, answers:
 
     missing_labels: list[str] = []
     for q in required_questions:
-        # FE serializes keys as strings; support int and str keys.
         raw = answers.get(q.id, answers.get(str(q.id)))
         if _required_answer_missing(q, raw):
             missing_labels.append(q.label)
@@ -67,9 +66,15 @@ def create_booking(
     answers: dict | list | None,
     payment_confirmed: bool = False,
     payment_reference: str | None = None,
+    share_token: str | None = None,
 ) -> Booking:
     at = db.get(AppointmentType, appointment_type_id)
-    if not at or not at.is_published:
+    if not at:
+        raise ValueError("Appointment not available")
+    if not at.is_published:
+        if not share_token or at.share_link != share_token:
+            raise ValueError("Appointment not available")
+    elif at.visibility == "private":
         raise ValueError("Appointment not available")
     if capacity < 1:
         raise ValueError("capacity must be at least 1")

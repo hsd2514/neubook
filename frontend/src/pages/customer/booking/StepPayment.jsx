@@ -1,13 +1,12 @@
 import { CreditCard } from "lucide-react";
 import { Card } from "../../../components/ui/Card.jsx";
 import { Button } from "../../../components/ui/Button.jsx";
-import { Input } from "../../../components/ui/Input.jsx";
 
 export default function StepPayment({
   confirmed,
   reference,
-  setConfirmed,
-  setReference,
+  paymentLoading,
+  onInitiatePayment,
   onBack,
   onNext,
 }) {
@@ -26,21 +25,18 @@ export default function StepPayment({
       </div>
 
       <div className="mt-5 rounded-lg border border-outline-variant bg-surface-container-low p-4">
-        <label className="flex items-center gap-2 text-sm text-on-surface">
-          <input
-            type="checkbox"
-            checked={confirmed}
-            onChange={(e) => setConfirmed(e.target.checked)}
-          />
-          Payment completed (dev mode)
-        </label>
+        <p className="text-sm text-on-surface-variant">
+          You will be redirected to PhonePe to complete payment.
+        </p>
+        {reference && (
+          <p className="mt-2 text-xs text-on-surface-variant">
+            Payment reference: <span className="font-medium text-on-surface">{reference}</span>
+          </p>
+        )}
         <div className="mt-3">
-          <Input
-            label="Payment reference"
-            placeholder="txn_12345"
-            value={reference}
-            onChange={(e) => setReference(e.target.value)}
-          />
+          <Button onClick={onInitiatePayment} disabled={paymentLoading}>
+            {paymentLoading ? "Redirecting..." : "Pay with PhonePe"}
+          </Button>
         </div>
       </div>
 

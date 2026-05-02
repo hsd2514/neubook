@@ -8,6 +8,7 @@ import VerifyOtp from "./pages/auth/VerifyOtp.jsx";
 import ForgotPassword from "./pages/auth/ForgotPassword.jsx";
 import Home from "./pages/customer/Home.jsx";
 import BookingFlow from "./pages/customer/BookingFlow.jsx";
+import EmbedBookingPage from "./pages/customer/EmbedBookingPage.jsx";
 import Profile from "./pages/customer/Profile.jsx";
 import Dashboard from "./pages/organiser/Dashboard.jsx";
 import AppointmentList from "./pages/organiser/AppointmentList.jsx";
@@ -73,6 +74,7 @@ export default function App() {
 
       <Route element={<CustomerLayout />}>
         <Route path="/" element={<Home />} />
+        <Route path="/book/share/:token" element={<BookingFlow />} />
         <Route path="/book/:id" element={<BookingFlow />} />
         <Route
           path="/profile"
@@ -83,6 +85,8 @@ export default function App() {
           }
         />
       </Route>
+
+      <Route path="/embed/book/share/:token" element={<EmbedBookingPage />} />
 
       <Route path="/app" element={<OrganiserShell />}>
         <Route index element={<Dashboard />} />
