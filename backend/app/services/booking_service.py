@@ -44,7 +44,8 @@ def create_booking(
             Booking.appointment_type_id == appointment_type_id,
             Booking.resource_id == resource_id,
             Booking.status.in_(["pending", "confirmed"]),
-            Booking.start_time == start_time,
+            Booking.start_time < end_time,
+            Booking.end_time > start_time,
         )
     ).scalar_one()
 
@@ -114,7 +115,8 @@ def reschedule_booking(db: Session, booking_id: int, user_id: int, new_start: da
             Booking.appointment_type_id == b.appointment_type_id,
             Booking.resource_id == b.resource_id,
             Booking.status.in_(["pending", "confirmed"]),
-            Booking.start_time == new_start,
+            Booking.start_time < end_time,
+            Booking.end_time > new_start,
             Booking.id != b.id,
         )
     ).scalar_one()

@@ -1,6 +1,5 @@
 """Compute available booking slots from weekly schedules minus existing bookings."""
 
-from collections import defaultdict
 from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -66,13 +65,19 @@ def get_availability(
         bookings_q = bookings_q.where(Booking.resource_id == resource_id)
     bookings = db.execute(bookings_q).scalars().all()
 
-    def slot_usage_key(start: datetime, res_id: int | None) -> tuple:
-        return (start.astimezone(timezone.utc).replace(tzinfo=timezone.utc), res_id)
-
-    usage: dict[tuple, int] = defaultdict(int)
-    for b in bookings:
-        key = slot_usage_key(b.start_time, b.resource_id)
-        usage[key] += b.capacity
+    def _overlap_usage(slot_start: datetime, slot_end: datetime, res_id: int | None) -> int:
+        """Sum capacity of bookings whose interval overlaps [slot_start, slot_end)."""
+        total = 0
+        ss_utc = slot_start.astimezone(timezone.utc)
+        se_utc = slot_end.astimezone(timezone.utc)
+        for b in bookings:
+            if res_id is not None and b.resource_id != res_id:
+                continue
+            b_start = b.start_time if b.start_time.tzinfo else b.start_time.replace(tzinfo=timezone.utc)
+            b_end = b.end_time if b.end_time.tzinfo else b.end_time.replace(tzinfo=timezone.utc)
+            if b_start < se_utc and b_end > ss_utc:
+                total += b.capacity
+        return total
 
     days_out: list[dict] = []
     d = from_date
@@ -95,10 +100,7 @@ def get_availability(
                 while cur + duration <= end:
                     slot_start = cur
                     slot_end = cur + duration
-                    used = usage.get(
-                        (slot_start.astimezone(timezone.utc).replace(tzinfo=timezone.utc), res_id),
-                        0,
-                    )
+                    used = _overlap_usage(slot_start, slot_end, res_id)
                     avail = max(0, max_per_slot - used)
                     if avail > 0:
                         day_slots.append(

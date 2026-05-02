@@ -45,8 +45,10 @@ export default function BookingFlow() {
 
   useEffect(() => {
     if (step !== 3 || !date || !at || !fromTo) return;
-    const rid = at.appointment_kind === "resource" ? resourceId : "";
-    api(`/api/appointments/${id}/availability?from_date=${fromTo.from}&to_date=${fromTo.to}&resource_id=${rid || ""}&tz=UTC`)
+    const rid = at.appointment_kind === "resource" ? resourceId : null;
+    const params = new URLSearchParams({ from_date: fromTo.from, to_date: fromTo.to, tz: "UTC" });
+    if (rid) params.set("resource_id", rid);
+    api(`/api/appointments/${id}/availability?${params}`)
       .then(setAvailability)
       .catch((e) => setErr(e.message));
   }, [step, date, resourceId, id, at, fromTo]);
