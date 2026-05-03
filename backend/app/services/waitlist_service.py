@@ -10,7 +10,7 @@ from app.models.appointment_type import AppointmentType
 from app.models.booking import Booking
 from app.models.waitlist import WaitlistEntry
 from app.services.booking_status import ACTIVE_SLOT_STATUSES
-from app.services.email_service import send_email
+from app.services.email_service import send_email_async
 from app.services.email_templates import waitlist_joined_email, waitlist_promoted_email
 from app.models.user import User
 
@@ -106,7 +106,7 @@ def join_waitlist(
     if customer:
         when = start_time.strftime("%Y-%m-%d %H:%M UTC")
         subject, body = waitlist_joined_email(customer.full_name, entry.position, at.name, when)
-        send_email(customer.email, subject, body)
+        send_email_async(customer.email, subject, body)
     return entry
 
 
@@ -202,7 +202,7 @@ def promote_next_from_waitlist(
             if customer:
                 when = start_time.strftime("%Y-%m-%d %H:%M UTC")
                 subject, body = waitlist_promoted_email(customer.full_name, at.name, when)
-                send_email(customer.email, subject, body)
+                send_email_async(customer.email, subject, body)
         if available <= 0:
             break
 

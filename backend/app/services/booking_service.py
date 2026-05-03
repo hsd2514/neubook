@@ -12,7 +12,7 @@ from app.models.seat import Seat
 from app.models.user import User
 from app.services.availability import auto_assign_resource, slot_exists_for_start
 from app.services.booking_status import ACTIVE_SLOT_STATUSES, CANCELLED, COMPLETED, CONFIRMED, PENDING
-from app.services.email_service import send_email
+from app.services.email_service import send_email_async
 from app.services.email_templates import booking_customer_email, booking_organiser_email
 from app.services.slot_lock import slot_lock
 
@@ -88,7 +88,7 @@ def _send_booking_email(
             subject=subject,
             customer_line=customer_line,
         )
-        send_email(customer.email, c_subject, c_body)
+        send_email_async(customer.email, c_subject, c_body)
     if organiser:
         o_subject, o_body = booking_organiser_email(
             organiser_name=organiser.full_name,
@@ -98,7 +98,7 @@ def _send_booking_email(
             subject=subject,
             organiser_line=organiser_line,
         )
-        send_email(organiser.email, o_subject, o_body)
+        send_email_async(organiser.email, o_subject, o_body)
 
 
 def create_booking(

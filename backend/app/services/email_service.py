@@ -1,5 +1,6 @@
 import logging
 import smtplib
+import threading
 from email.message import EmailMessage
 
 from app.config import settings
@@ -96,3 +97,13 @@ def send_email_ex(to_email: str, subject: str, text_body: str, html_body: str | 
 def send_email(to_email: str, subject: str, text_body: str, html_body: str | None = None) -> bool:
     ok, _ = send_email_ex(to_email, subject, text_body, html_body=html_body)
     return ok
+
+
+def send_email_async(to_email: str, subject: str, text_body: str, html_body: str | None = None) -> None:
+    def _worker():
+        try:
+            send_email_ex(to_email, subject, text_body, html_body=html_body)
+        except Exception:
+            logger.exception("Async email worker crashed. to=%s subject=%s", to_email, subject)
+
+    threading.Thread(target=_worker, daemon=True).start()
