@@ -67,6 +67,13 @@ export default function StepDone({ booking, bookings, at }) {
   const allConfirmed = list.every((b) => b.status === "confirmed");
   const anyPending = list.some((b) => b.status === "pending");
   const first = list[0];
+  const venues = Array.from(
+    new Set(
+      list
+        .map((b) => at?.resources?.find((r) => r.id === b.resource_id)?.name)
+        .filter(Boolean),
+    ),
+  );
 
   async function downloadReceipt(bookingId) {
     setDownloadError("");
@@ -107,6 +114,11 @@ export default function StepDone({ booking, bookings, at }) {
       <p className="mt-1 text-sm text-on-surface-variant">
         {anyPending ? "You will get a mail when organiser confirms your booking." : "Your booking has been confirmed."}
       </p>
+      {venues.length > 0 && (
+        <p className="mt-1 text-sm text-on-surface-variant">
+          Venue: {venues.join(", ")}
+        </p>
+      )}
 
       {list.map((b) => (
         <BookingSummary
